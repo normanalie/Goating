@@ -2,13 +2,11 @@ from nicegui import ui
 import time
 
 def setup_interface(ui, columns, rows, update_states):
-    with ui.column().style("width: 100%; height: 100vh; justify-content: center; align-items: center;"):
+    with ui.column().style("width: 100%; height: 100vh; justify-content: center; align-items: center; max-height: 480px; overflow: hidden;"):
         # Affichage du nom du système avec l'icône
         with ui.row().style("align-items: center; margin-bottom: 10px;"):
             ui.icon("precision_manufacturing").style("font-size: 28px; color: #007acc;")
             ui.label("STOREBOT").style("font-size: 28px; font-weight: bold; color: #007acc; margin-left: 5px;")
-
-        ui.label("Statut du Système").style("font-size: 18px; text-align: center; margin-bottom: 10px;")
 
         # Tableau des états de connexion
         with ui.table(columns=columns, rows=rows).style("width: 200px") as table:
@@ -23,10 +21,10 @@ def setup_interface(ui, columns, rows, update_states):
         # Boutons côte à côte
         with ui.row().style("margin-top: 20px; justify-content: center; gap: 10px;"):
             ui.button('Rafraîchir', on_click=update_states).style(
-                "font-size: 16px; width: 200px; padding: 10px;"
+                "font-size: 14px; width: 200px; padding: 10px;"
             )
             ui.button("Vision", on_click=lambda: ui.navigate.to('/video')).style(
-                "font-size: 16px; width: 200px; padding: 10px; background-color: #007acc; color: white;"
+                "font-size: 14px; width: 200px; padding: 10px; background-color: #007acc; color: white;"
             )
 
         # Footer en bas de page
@@ -56,7 +54,7 @@ def video_page():
             ui.button("Annuler", on_click=lambda: settings_modal.close()).style(
                 "background-color: gray; color: white;"
             )
-            ui.button("Ajouter", on_click=lambda: add_face(name_input)).style(
+            ui.button("Ajouter", on_click=lambda: (add_face(name_input), settings_modal.close())).style(
                 "background-color: #007acc; color: white;"
             )
 

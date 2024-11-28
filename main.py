@@ -15,7 +15,8 @@ columns = [
 rows = [
     {'service': 'Supabase', 'state': "checking"},
     {'service': 'Camera', 'state': "checking"},
-    {'service': 'Serial Connection', 'state': "checking"},
+    {'service': 'Serial Pico', 'state': "checking"},
+    {'service': 'ROS', 'state': "error"},
 ]
 
 # Fonction de mise à jour des états
