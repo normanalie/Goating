@@ -3,3 +3,4 @@
 __pycache__
 software.py
 .DS_Store
+faces.db

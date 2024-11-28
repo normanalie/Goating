@@ -1,3 +1,4 @@
+import sqlite3
 import cv2
 import face_recognition
 from fastapi.responses import StreamingResponse
@@ -6,7 +7,50 @@ import numpy as np
 # Charger le classificateur Haar pour la détection des visages
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
-known_faces = []
+# Initialiser la base de données SQLite
+DB_FILE = "faces.db"
+
+def initialize_database():
+    """Initialise la base de données SQLite pour stocker les visages."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS faces (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            name TEXT NOT NULL,
+            encoding BLOB NOT NULL
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+def save_face_to_database(name, encoding):
+    """Enregistre un visage dans la base de données."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    # Convertir l'encodage facial en tableau compressé
+    encoding_blob = np.array(encoding).tobytes()
+    cursor.execute("INSERT INTO faces (name, encoding) VALUES (?, ?)", (name, encoding_blob))
+    conn.commit()
+    conn.close()
+
+def load_faces_from_database():
+    """Charge les visages enregistrés depuis la base de données."""
+    conn = sqlite3.connect(DB_FILE)
+    cursor = conn.cursor()
+    cursor.execute("SELECT name, encoding FROM faces")
+    rows = cursor.fetchall()
+    conn.close()
+
+    faces = []
+    for name, encoding_blob in rows:
+        encoding = np.frombuffer(encoding_blob, dtype=np.float64)
+        faces.append({"name": name, "encoding": encoding})
+    return faces
+
+# Charger les visages connus depuis la base de données
+initialize_database()
+known_faces = load_faces_from_database()
 
 def check_camera():
     """Vérifie si la caméra est accessible."""
@@ -82,14 +126,16 @@ def video_stream():
 
 def add_new_face(name, frame):
     """
-    Ajoute un nouveau visage à la liste des visages connus.
+    Ajoute un nouveau visage à la liste des visages connus et le stocke dans la base de données.
     """
     rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
     face_locations = face_recognition.face_locations(rgb_frame)
     face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
 
     if face_encodings and len(face_encodings) == 1:
-        known_faces.append({"name": name, "encoding": face_encodings[0]})
+        encoding = face_encodings[0]
+        known_faces.append({"name": name, "encoding": encoding})
+        save_face_to_database(name, encoding)
         return True
     return False
 
