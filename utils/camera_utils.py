@@ -7,50 +7,32 @@ import numpy as np
 # Charger le classificateur Haar pour la détection des visages
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
-# Initialiser la base de données SQLite
-DB_FILE = "faces.db"
 
-def initialize_database():
-    """Initialise la base de données SQLite pour stocker les visages."""
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS faces (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            name TEXT NOT NULL,
-            encoding BLOB NOT NULL
-        )
-    """)
-    conn.commit()
-    conn.close()
+def save_faces_to_supabase(supabase_client, user_id, encodings):
+    """Enregistre plusieurs encoding d'un même visage dans la base de données."""
+    encoding_blob = [np.array(encoding).tobytes() for encoding in encodings]
+    data = {
+        "user_id": user_id,
+        "face_encodings": encoding_blob
+    }
+    res = supabase_client.table("staff_to_user").insert(data).execute()
+    if res.error:
+        print('[CAMERA] Save face encodings to Supabase error: ', res.error)
+    else:
+        print('[CAMERA] Save face encodings to Supabase success')
 
-def save_face_to_database(name, encoding):
-    """Enregistre un visage dans la base de données."""
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    # Convertir l'encodage facial en tableau compressé
-    encoding_blob = np.array(encoding).tobytes()
-    cursor.execute("INSERT INTO faces (name, encoding) VALUES (?, ?)", (name, encoding_blob))
-    conn.commit()
-    conn.close()
-
-def load_faces_from_database():
-    """Charge les visages enregistrés depuis la base de données."""
-    conn = sqlite3.connect(DB_FILE)
-    cursor = conn.cursor()
-    cursor.execute("SELECT name, encoding FROM faces")
-    rows = cursor.fetchall()
-    conn.close()
-
+def load_face_from_supabase(supabase_client, user_id):
+    res = supabase_client.table("staff_to_user").select("face_encodings").eq("user_id", user_id).execute()
+    if res.error:
+        print('[CAMERA] Load face encodings from Supabase error: ', res.error)
+        return None
     faces = []
-    for name, encoding_blob in rows:
-        encoding = np.frombuffer(encoding_blob, dtype=np.float64)
-        faces.append({"name": name, "encoding": encoding})
-    return faces
+    for row in res.data:
+        blob = row["face_encodings"]
+        encodings = [np.frombuffer(encoding, dtype=np.float64) for encoding in blob]
+        faces.append({"name": user_id, "encoding": encodings})
+    return encodings
 
-# Charger les visages connus depuis la base de données
-initialize_database()
-known_faces = load_faces_from_database()
 
 def check_camera():
     """Vérifie si la caméra est accessible."""
@@ -62,7 +44,7 @@ def check_camera():
     else:
         return False
 
-def detect_faces_with_names(frame: np.ndarray) -> np.ndarray:
+def detect_faces_with_name(frame: np.ndarray, encodings) -> np.ndarray:
     """
     Détecte les visages dans une image et dessine des boîtes autour.
     """
@@ -76,12 +58,12 @@ def detect_faces_with_names(frame: np.ndarray) -> np.ndarray:
 
     for face_encoding, (top, right, bottom, left) in zip(face_encodings, face_locations):
         # Recherche dans les visages connus
-        matches = face_recognition.compare_faces([f["encoding"] for f in known_faces], face_encoding, tolerance=0.5)
+        matches = face_recognition.compare_faces([f["encoding"] for f in encodings], face_encoding, tolerance=0.5)
         name = "No Name"
 
         if True in matches:
             match_index = matches.index(True)
-            name = known_faces[match_index]["name"]
+            name = encodings[match_index]["name"]
 
         # Mise à l'échelle des coordonnées pour la résolution d'origine
         top, right, bottom, left = int(top * 2), int(right * 2), int(bottom * 2), int(left * 2)
@@ -91,7 +73,7 @@ def detect_faces_with_names(frame: np.ndarray) -> np.ndarray:
         cv2.putText(frame, name, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
     return frame
 
-def video_stream():
+def video_stream(known_faces):
     """
     Génère un flux vidéo continu avec détection des visages.
     """
@@ -112,7 +94,7 @@ def video_stream():
                 break
 
             # Optimisation de la détection des visages
-            frame_with_faces = detect_faces_with_names(frame)
+            frame_with_faces = detect_faces_with_name(frame, known_faces)
 
             # Encode l'image en JPEG
             _, buffer = cv2.imencode('.jpg', frame_with_faces)
@@ -124,28 +106,21 @@ def video_stream():
 
     return StreamingResponse(generate_frames(), media_type='multipart/x-mixed-replace; boundary=frame')
 
-def add_new_face(name, frame):
+def add_new_face(supabase_client, user_id, frames):
     """
     Ajoute un nouveau visage à la liste des visages connus et le stocke dans la base de données.
     """
-    rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-    face_locations = face_recognition.face_locations(rgb_frame)
-    face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+    encodings = []
+    for frame in frames:
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+        face_locations = face_recognition.face_locations(rgb_frame)
+        face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
+        encodings.append(face_encodings[0])
 
-    if face_encodings and len(face_encodings) == 1:
-        encoding = face_encodings[0]
-        known_faces.append({"name": name, "encoding": encoding})
-        save_face_to_database(name, encoding)
-        return True
-    return False
+    return save_faces_to_supabase(supabase_client, user_id, encodings)
 
-def capture_and_add(name):
-    """
-    Capture une image à partir de la caméra et ajoute un visage connu.
-    """
+def capture_frame():
     cap = cv2.VideoCapture(0)
     ret, frame = cap.read()
     cap.release()
-    if ret and add_new_face(name, frame):
-        return True
-    return False
+    return frame if ret else None

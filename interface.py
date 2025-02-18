@@ -1,6 +1,7 @@
 from nicegui import ui, app
 import time
-from utils.supabase_utils import login as supabase_login, check_login
+from utils.camera_utils import load_face_from_supabase
+from utils.supabase_utils import login as supabase_login, check_login, supabase as supabase_client
 
 @ui.page('/')
 async def home_page():
@@ -133,7 +134,7 @@ def login_page():
             ui.label("STOREBOT").style("font-size: 28px; font-weight: bold; color: #007acc; margin-left: 5px;")
 
         # Form
-        staff_number = ui.input(label="N° de compte", placeholder="Entrez votre n° étudiant").props("clearable").style("margin-bottom: 10px; width: 410px")
+        staff_number = ui.input(label="N° de compte", placeholder="Entrez votre n° étudiant").props("clearable").style("margin-bottom: 10px; width: 410px")  # TODO: Autofill when user scan his card.
         password = ui.input(label="Mot de passe", placeholder="Entrez votre mot de passe", password=True).props("clearable").style("margin-bottom: 10px; width: 410px")
          # Boutons côte à côte
         with ui.row().style("margin-top: 20px; justify-content: center; gap: 10px;"):
