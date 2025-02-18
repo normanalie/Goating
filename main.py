@@ -28,6 +28,7 @@ def update_states():
 # Configurer l'interface utilisateur
 setup_interface(ui, columns, rows, update_states)
 
+
 # Initialiser les états au lancement
 update_states()
 
@@ -37,4 +38,4 @@ async def video_stream_route():
 
 
 # Lancer l'application
-ui.run()
+ui.run(storage_secret="secret")
