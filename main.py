@@ -28,7 +28,7 @@ def update_states():
     rows[2]['state'] = "connecte" if check_serial_connection() else "error"
 
 # Configurer l'interface utilisateur
-setup_interface(ui, columns, rows, update_states)
+# setup_interface(ui, columns, rows, update_states)
 
 
 # Initialiser les états au lancement
