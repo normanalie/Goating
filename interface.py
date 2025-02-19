@@ -5,8 +5,13 @@ from utils.supabase_utils import login as supabase_login, check_login, supabase 
 import base64
 import asyncio 
 
+DISABLE_LOGIN = True  # WARNING NOT TO BE USED IN PRODUCTION
+
 def is_user_connected():
     if (not check_login()) or (not 'user' in app.storage.user.keys()) or (app.storage.user['user'] == None):
+        if DISABLE_LOGIN:
+            app.storage.user['user'] = {"id": "developper", "email": "developper"}
+            return True
         return False
     return True
 
@@ -30,19 +35,32 @@ async def home_page():
             "height: 20px; width: 20px; background-color: #007acc; color: white; margin-left: auto;"
         )
 
+    # Bloc central contenant les 3 boutons en colonne
+    with ui.column().style("width: 100%; justify-content: center; align-items: center; margin-top: 80px;"):
+        ui.button("Mes commandes", on_click=lambda: ui.navigate.to('/orders')).style(
+            "margin-bottom: 10px; width: 200px; padding: 10px; background-color: #007acc; color: white;"
+        )
+        ui.button("Nouvelle commande", on_click=lambda: ui.navigate.to('/new_order')).style(
+            "margin-bottom: 10px; width: 200px; padding: 10px; background-color: #007acc; color: white;"
+        )
+        ui.button("Déconnexion", color=None, on_click=logout).style(
+            "width: 200px; padding: 10px;"
+        )
 
-    # When clients are connected
+    # Attente de la connexion du client
     await ui.context.client.connected()
+    # Modale utilisateur
     with ui.dialog() as user_modal, ui.card():
         with ui.row().style("align-items: center; margin-bottom: 10px;"):
             ui.icon("person").style("font-size: 24px; color: #007acc;")
             ui.label("Utilisateur").style("font-size: 20px; font-weight: bold; color: #007acc; margin-left: 5px;")
-        user = app.storage.user['user']  # Existence of the key is checked at the loading of the page
+        user = app.storage.user['user']  # L'existence de la clé est vérifiée lors du chargement de la page
         ui.label(f'ID: {user["id"]}').style("font-size: 14px; color: #007acc; margin-left: 5px;")
         ui.label(f'Email: {user["email"]}').style("font-size: 14px; color: #007acc; margin-left: 5px;")
-        ui.button("Deconnexion", on_click=logout).style(
-                "font-size: 14px; width: 200px; padding: 10px; background-color: #007acc; color: white;"
-            )
+        ui.button("Déconnexion", on_click=logout).style(
+            "font-size: 14px; width: 200px; padding: 10px; background-color: #007acc; color: white;"
+        )
+
 
 def logout():
     print('[INTERFACE] User logged out')

@@ -40,4 +40,4 @@ def check_login():
             return res.user
     except Exception as e:
         print('[SUPABASE] Check login error: ',e)
-    return None
+    return False
