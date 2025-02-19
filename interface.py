@@ -1,6 +1,6 @@
 from nicegui import ui, app
 import time
-from utils.camera_utils import load_face_from_supabase
+from utils.camera_utils import load_face_from_supabase, capture_frame, add_new_face, verify_face, frame_to_data_uri
 from utils.supabase_utils import login as supabase_login, check_login, supabase as supabase_client
 
 @ui.page('/')
@@ -128,30 +128,95 @@ def add_face(name_input):
 @ui.page('/login')
 def login_page():
     with ui.column().style("width: 100%; height: 100vh; justify-content: center; align-items: center;"):
-        # Affichage du nom du système avec l'icône
         with ui.row().style("align-items: center; margin-bottom: 10px;"):
             ui.icon("precision_manufacturing").style("font-size: 28px; color: #007acc;")
             ui.label("STOREBOT").style("font-size: 28px; font-weight: bold; color: #007acc; margin-left: 5px;")
-
-        # Form
-        staff_number = ui.input(label="N° de compte", placeholder="Entrez votre n° étudiant").props("clearable").style("margin-bottom: 10px; width: 410px")  # TODO: Autofill when user scan his card.
+        staff_number = ui.input(label="N° de compte", placeholder="Entrez votre n° étudiant").props("clearable").style("margin-bottom: 10px; width: 410px")
         password = ui.input(label="Mot de passe", placeholder="Entrez votre mot de passe", password=True).props("clearable").style("margin-bottom: 10px; width: 410px")
-         # Boutons côte à côte
         with ui.row().style("margin-top: 20px; justify-content: center; gap: 10px;"):
             ui.button('Aide', color=None, on_click=lambda: ui.navigate.to('/help')).style(
                 "font-size: 14px; width: 200px; padding: 10px;"
             )
-            ui.button("Connexion", on_click=lambda: ui.navigate.to('/') if login(staff_number.value, password.value) else ui.notify("Email ou mot de passe incorrect", color="red")).style(
+            # Au lieu d'aller directement à '/', on va vers la page de vérification du visage
+            ui.button("Connexion", on_click=lambda: check_and_verify(staff_number.value, password.value)).style(
                 "font-size: 14px; width: 200px; padding: 10px; background-color: #007acc; color: white;"
             )
-        # Footer en bas de page
         ui.label("Made with <3 by GOATing team").style("font-size: 12px; color: #888888; margin-top: 10px;")
 
-# Login a user using supabase and write the user session to storage
-def login(staff_number, password):
+def check_and_verify(staff_number, password):
     user = supabase_login(staff_number, password)
     if user:
         app.storage.user['user'] = user
-        return True
-    app.storage.user['user'] = None
-    return False
+        ui.navigate.to('/face_verification')
+    else:
+        app.storage.user['user'] = None
+        ui.notify("Email ou mot de passe incorrect", color="red")
+
+@ui.page('/face_verification')
+async def face_verification_page():
+    user = app.storage.user['user']
+    if not user:
+        ui.navigate.to('/login')
+        return
+
+    # Charger les encodings enregistrés pour cet utilisateur
+    stored_encodings = load_face_from_supabase(supabase_client, user.id)
+
+    await ui.context.client.connected()
+    with ui.column().style("width: 100%; height: 100vh; justify-content: center; align-items: center;"):
+        if stored_encodings["encoding"] == []:
+            ui.label("Aucun visage n'est enregistré pour votre compte.").style("font-size: 18px; margin-bottom: 20px;")
+            ui.button("Ajouter mon visage", on_click=lambda: ui.navigate.to('/face_registration')).style(
+                "font-size: 14px; width: 200px; padding: 10px; background-color: #007acc; color: white;"
+            )
+        else:
+            ui.label("Veuillez vérifier votre visage").style("font-size: 18px; margin-bottom: 20px;")
+            ui.button("Vérifier visage", on_click=lambda: verify_and_login(user.id)).style(
+                "font-size: 14px; width: 200px; padding: 10px; background-color: #007acc; color: white;"
+            )
+
+def verify_and_login(user_id):
+    # La fonction verify_face doit capturer une frame et comparer avec les encodings stockés
+    valid, message = verify_face(supabase_client, user_id)
+    if valid:
+        ui.notify("Visage reconnu, connexion validée !", color="green")
+        ui.navigate.to('/')
+    else:
+        ui.notify(message, color="red")
+
+@ui.page('/face_registration')
+def face_registration_page():
+    user = app.storage.user['user']
+    if not user:
+        ui.navigate.to('/login')
+        return
+    with ui.column().style("width: 100%; height: 100vh; justify-content: center; align-items: center;"):
+        ui.label("Enregistrez votre visage").style("font-size: 18px; margin-bottom: 20px;")
+        # Crée un composant image vide qu'on remplira après capture
+        captured_image = ui.image("").style("width: 200px; height: 200px;")
+        ui.button("Capturer et enregistrer mon visage", on_click=lambda: register_face(user.id, captured_image)).style(
+            "font-size: 14px; width: 250px; padding: 10px; background-color: #007acc; color: white;"
+        )
+
+def register_face(user_id, captured_image_component):
+    # Capture quelques frames pour obtenir un bon encoding
+    frames = []
+    for _ in range(3):
+        frame = capture_frame()
+        if frame is not None:
+            frames.append(frame)
+    print("CAPTURED 3 FRAMES")
+    if frames:
+        # Affiche la dernière frame capturée
+        data_uri = frame_to_data_uri(frames[-1])
+        print("DATA URI: ", data_uri)
+        if data_uri:
+            captured_image_component.set_source(data_uri)
+            captured_image_component.force_reload()
+
+        # Enregistre les encodings dans Supabase
+        add_new_face(supabase_client, user_id, frames)
+        ui.notify("Visage enregistré, vous pouvez maintenant vérifier votre visage.", color="green")
+        ui.navigate.to('/face_verification')
+    else:
+        ui.notify("Impossible de capturer une image", color="red")
