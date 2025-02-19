@@ -5,13 +5,17 @@ from utils.supabase_utils import login as supabase_login, check_login, supabase 
 import base64
 import asyncio 
 
-
+def is_user_connected():
+    if (not check_login()) or (not 'user' in app.storage.user.keys()) or (app.storage.user['user'] == None):
+        return False
+    return True
 
 @ui.page('/')
 async def home_page():
-    if (not check_login()) or (not 'user' in app.storage.user.keys()) or (app.storage.user['user'] == None):
+    if not is_user_connected():
         print('[INTERFACE] User not logged in')
         ui.navigate.to('/login')
+        return 
 
     with ui.row().style("width: 100%; display: flex; align-items: center;"):
         ui.button(icon="arrow_back_ios_new", on_click=lambda: ui.navigate.to('/')).style(
@@ -27,15 +31,15 @@ async def home_page():
         )
 
 
-    # Whel clients are connected
+    # When clients are connected
     await ui.context.client.connected()
     with ui.dialog() as user_modal, ui.card():
         with ui.row().style("align-items: center; margin-bottom: 10px;"):
             ui.icon("person").style("font-size: 24px; color: #007acc;")
             ui.label("Utilisateur").style("font-size: 20px; font-weight: bold; color: #007acc; margin-left: 5px;")
         user = app.storage.user['user']  # Existence of the key is checked at the loading of the page
-        ui.label(f'ID: {user.id}').style("font-size: 14px; color: #007acc; margin-left: 5px;")
-        ui.label(f'Email: {user.email}').style("font-size: 14px; color: #007acc; margin-left: 5px;")
+        ui.label(f'ID: {user["id"]}').style("font-size: 14px; color: #007acc; margin-left: 5px;")
+        ui.label(f'Email: {user["email"]}').style("font-size: 14px; color: #007acc; margin-left: 5px;")
         ui.button("Deconnexion", on_click=logout).style(
                 "font-size: 14px; width: 200px; padding: 10px; background-color: #007acc; color: white;"
             )
@@ -150,7 +154,10 @@ def login_page():
 def check_and_verify(staff_number, password):
     user = supabase_login(staff_number, password)
     if user:
-        app.storage.user['user'] = user
+        app.storage.user['user'] = {
+            "id": user.id,
+            "email": user.email,
+        }
         ui.navigate.to('/face_verification')
     else:
         app.storage.user['user'] = None
@@ -158,24 +165,24 @@ def check_and_verify(staff_number, password):
 
 @ui.page('/face_verification')
 async def face_verification_page():
-    user = app.storage.user['user']
-    if not user:
+    if not is_user_connected:
         ui.navigate.to('/login')
         return
     
+    user = app.storage.user['user']
     # Ajout de la flèche bleue en haut, au centre de la page
     with ui.row().style("position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 1000;"):
         ui.icon("arrow_upward").style("font-size: 48px; color: #007acc;")
     
     # Charger les encodages enregistrés pour cet utilisateur
-    stored_encodings = load_face_from_supabase(supabase_client, user.id)
+    stored_encodings = load_face_from_supabase(supabase_client, user["id"])
 
     with ui.column().style("width: 100%; height: 100vh; justify-content: center; align-items: center;"):
         ui.label("Un petit instant, nous vérifions votre identité...").style("font-size: 18px; margin-bottom: 20px;")
     await ui.context.client.connected()
     if stored_encodings["encoding"] == []:
         ui.navigate.to('/face_registration')
-    verify_and_login(user.id)
+    verify_and_login(user["id"])
 
 def verify_and_login(user_id):
     # La fonction verify_face doit capturer une frame et comparer avec les encodings stockés
@@ -189,13 +196,14 @@ def verify_and_login(user_id):
 
 @ui.page('/face_registration')
 def face_registration_page():
-    user = app.storage.user['user']
-    if not user:
+    if not is_user_connected():
         ui.navigate.to('/login')
         return
+    
+    user = app.storage.user['user']
     with ui.column().style("width: 100%; height: 100vh; justify-content: center; align-items: center;"):
         ui.label("Nous devons enregistrer votre visage. Cliquer sur le bouton pour commencer").style("font-size: 18px; margin-bottom: 20px;")
-        ui.button("Démarrer", on_click=lambda: register_face(user.id)).style(
+        ui.button("Démarrer", on_click=lambda: register_face(user["id"])).style(
             "font-size: 14px; width: 250px; padding: 10px; background-color: #007acc; color: white;"
         )
 
