@@ -6,30 +6,36 @@ from fastapi.responses import StreamingResponse
 import numpy as np
 import json
 import base64
+import asyncio
 
 # Charger le classificateur Haar pour la détection des visages
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
 
-def save_faces_to_supabase(supabase_client, user_id, encodings):
+async def save_faces_to_supabase(supabase_client, user_id, encodings):
     """
     Enregistre plusieurs encodages d'un même visage dans la table "faces".
-    Chaque encodage est inséré dans une ligne distincte.
-    Les encodages sont stockés sous forme de liste (format JSON) dans une colonne de type jsonb.
+    Chaque encodage est inséré dans une ligne distincte en utilisant asyncio.to_thread
+    pour ne pas bloquer l'event loop de Nicegui.
     """
-    for encoding in encodings:
-        # Convertir le tableau numpy en liste Python (sérialisable en JSON)
+    async def insert_encoding(encoding):
         encoding_json = np.array(encoding).tolist()
         data = {
             "user_id": user_id,
             "encoding": encoding_json
         }
         try:
-            res = supabase_client.table("faces").insert(data).execute()
+            # Exécute l'appel bloquant dans un thread séparé
+            await asyncio.to_thread(supabase_client.table("faces").insert(data).execute)
             print('[CAMERA] Insertion réussie de l\'encoding pour user_id:', user_id)
+            return True
         except Exception as e:
             print('[CAMERA] Erreur lors de l\'insertion de l\'encoding pour user_id', user_id, ":", e)
+            return False
 
+    # Lancer toutes les insertions en parallèle
+    results = await asyncio.gather(*(insert_encoding(encoding) for encoding in encodings))
+    return all(results)
 
 def load_face_from_supabase(supabase_client, user_id):
     """
@@ -88,7 +94,7 @@ def detect_faces_with_name(frame: np.ndarray, stored_data) -> np.ndarray:
     return frame
 
 
-def video_stream(known_faces):
+def video_stream(known_faces = None):
     """
     Génère un flux vidéo continu avec détection des visages.
     """
@@ -109,7 +115,7 @@ def video_stream(known_faces):
                 break
 
             # Optimisation de la détection des visages
-            frame_with_faces = detect_faces_with_name(frame, known_faces)
+            frame_with_faces = detect_faces_with_name(frame, known_faces) if known_faces else frame
 
             # Encode l'image en JPEG
             _, buffer = cv2.imencode('.jpg', frame_with_faces)
@@ -122,7 +128,7 @@ def video_stream(known_faces):
     return StreamingResponse(generate_frames(), media_type='multipart/x-mixed-replace; boundary=frame')
 
 
-def add_new_face(supabase_client, user_id, frames):
+async def add_new_face(supabase_client, user_id, frames):
     """
     Ajoute un nouveau visage à la liste des visages connus et le stocke dans la base de données.
     """
@@ -133,13 +139,14 @@ def add_new_face(supabase_client, user_id, frames):
         face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
         if face_encodings:
             encodings.append(face_encodings[0])
-
-    return save_faces_to_supabase(supabase_client, user_id, encodings)
+    print(f"[CAMERA] Detected face in {len(encodings)} frame for user {user_id}")
+    success = await save_faces_to_supabase(supabase_client, user_id, encodings)
+    return success
 
 
 def capture_frame():
     cap = cv2.VideoCapture(0)
-    time.sleep(1)  # Attendre l'initialisation de la caméra pour éviter une image noire.
+    time.sleep(0.5)  # Attendre l'initialisation de la caméra pour éviter une image noire.
     ret, frame = cap.read()
     cap.release()
     return frame 

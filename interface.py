@@ -2,6 +2,10 @@ from nicegui import ui, app
 import time
 from utils.camera_utils import load_face_from_supabase, capture_frame, add_new_face, verify_face, frame_to_data_uri
 from utils.supabase_utils import login as supabase_login, check_login, supabase as supabase_client
+import base64
+import asyncio 
+
+
 
 @ui.page('/')
 async def home_page():
@@ -158,31 +162,30 @@ async def face_verification_page():
     if not user:
         ui.navigate.to('/login')
         return
-
-    # Charger les encodings enregistrés pour cet utilisateur
+    
+    # Ajout de la flèche bleue en haut, au centre de la page
+    with ui.row().style("position: fixed; top: 10px; left: 50%; transform: translateX(-50%); z-index: 1000;"):
+        ui.icon("arrow_upward").style("font-size: 48px; color: #007acc;")
+    
+    # Charger les encodages enregistrés pour cet utilisateur
     stored_encodings = load_face_from_supabase(supabase_client, user.id)
 
-    await ui.context.client.connected()
     with ui.column().style("width: 100%; height: 100vh; justify-content: center; align-items: center;"):
-        if stored_encodings["encoding"] == []:
-            ui.label("Aucun visage n'est enregistré pour votre compte.").style("font-size: 18px; margin-bottom: 20px;")
-            ui.button("Ajouter mon visage", on_click=lambda: ui.navigate.to('/face_registration')).style(
-                "font-size: 14px; width: 200px; padding: 10px; background-color: #007acc; color: white;"
-            )
-        else:
-            ui.label("Veuillez vérifier votre visage").style("font-size: 18px; margin-bottom: 20px;")
-            ui.button("Vérifier visage", on_click=lambda: verify_and_login(user.id)).style(
-                "font-size: 14px; width: 200px; padding: 10px; background-color: #007acc; color: white;"
-            )
+        ui.label("Un petit instant, nous vérifions votre identité...").style("font-size: 18px; margin-bottom: 20px;")
+    await ui.context.client.connected()
+    if stored_encodings["encoding"] == []:
+        ui.navigate.to('/face_registration')
+    verify_and_login(user.id)
 
 def verify_and_login(user_id):
     # La fonction verify_face doit capturer une frame et comparer avec les encodings stockés
     valid, message = verify_face(supabase_client, user_id)
     if valid:
         ui.notify("Visage reconnu, connexion validée !", color="green")
-        ui.navigate.to('/')
+        ui.timer(1, lambda: ui.navigate.to('/'), once=True)
     else:
         ui.notify(message, color="red")
+        ui.timer(2, lambda: ui.navigate.to('/login'), once=True)
 
 @ui.page('/face_registration')
 def face_registration_page():
@@ -191,32 +194,56 @@ def face_registration_page():
         ui.navigate.to('/login')
         return
     with ui.column().style("width: 100%; height: 100vh; justify-content: center; align-items: center;"):
-        ui.label("Enregistrez votre visage").style("font-size: 18px; margin-bottom: 20px;")
-        # Crée un composant image vide qu'on remplira après capture
-        captured_image = ui.image("").style("width: 200px; height: 200px;")
-        ui.button("Capturer et enregistrer mon visage", on_click=lambda: register_face(user.id, captured_image)).style(
+        ui.label("Nous devons enregistrer votre visage. Cliquer sur le bouton pour commencer").style("font-size: 18px; margin-bottom: 20px;")
+        ui.button("Démarrer", on_click=lambda: register_face(user.id)).style(
             "font-size: 14px; width: 250px; padding: 10px; background-color: #007acc; color: white;"
         )
 
-def register_face(user_id, captured_image_component):
+import asyncio
+
+async def register_face(user_id):
     # Capture quelques frames pour obtenir un bon encoding
     frames = []
-    for _ in range(3):
-        frame = capture_frame()
-        if frame is not None:
-            frames.append(frame)
-    print("CAPTURED 3 FRAMES")
-    if frames:
-        # Affiche la dernière frame capturée
-        data_uri = frame_to_data_uri(frames[-1])
-        print("DATA URI: ", data_uri)
-        if data_uri:
-            captured_image_component.set_source(data_uri)
-            captured_image_component.force_reload()
+    # Créer la flèche en haut au centre
+    arrow = ui.icon("arrow_upward").style(
+        "position: fixed; top: 10px; left: 50%; transform: translateX(-50%); font-size: 48px; color: #007acc; z-index: 1000;"
+    )
 
-        # Enregistre les encodings dans Supabase
-        add_new_face(supabase_client, user_id, frames)
-        ui.notify("Visage enregistré, vous pouvez maintenant vérifier votre visage.", color="green")
-        ui.navigate.to('/face_verification')
+    # Première étape : flèche au centre et capture de la première image
+    await asyncio.sleep(1)  # attendre 1 seconde
+    frame1 = capture_frame()
+    if frame1 is not None:
+        frames.append(frame1)
+
+    # Deuxième étape : déplacer la flèche en haut à droite et capturer une image
+    arrow.style("position: fixed; top: 10px; right: 10px; left: unset; transform: none;")
+    await asyncio.sleep(1)
+    frame2 = capture_frame()
+    if frame2 is not None:
+        frames.append(frame2)
+
+    # Troisième étape : déplacer la flèche en haut à gauche et capturer une image
+    arrow.style("position: fixed; top: 10px; left: 10px; right: unset; transform: none;")
+    await asyncio.sleep(1)
+    frame3 = capture_frame()
+    if frame3 is not None:
+        frames.append(frame3)
+
+    # Supprimer la flèche après la capture
+    arrow.style("display: none;")
+    arrow.delete()
+
+    if frames:
+        print(f"[INTERFACE] Face registration: captured {len(frames)} frames for user {user_id}")
+        # Utilisation d'asyncio.to_thread pour ne pas bloquer l'event loop si add_new_face est synchrone
+        success = await add_new_face(supabase_client, user_id, frames)
+        if success:
+            ui.notify("Visage enregistré, vous pouvez maintenant vérifier votre visage.", color="green")
+            ui.timer(2, lambda: ui.navigate.to('/face_verification'), once=True)
+        else:
+            print(f"[INTERFACE] Face registration: failed to add face for user {user_id}")
+            ui.notify("Impossible d'enregistrer le visage dans la DB. Veuillez réessayer.", color="red")
+            ui.timer(2, lambda: ui.navigate.to('/login'), once=True)
     else:
+        print(f"[INTERFACE] Face registration: no frames captured for user {user_id}")
         ui.notify("Impossible de capturer une image", color="red")
