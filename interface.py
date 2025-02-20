@@ -5,7 +5,7 @@ from utils.supabase_utils import login as supabase_login, check_login, supabase 
 import base64
 import asyncio 
 
-DISABLE_LOGIN = True  # WARNING NOT TO BE USED IN PRODUCTION
+DISABLE_LOGIN = False  # WARNING NOT TO BE USED IN PRODUCTION
 
 def is_user_connected():
     if (not check_login()) or (not 'user' in app.storage.user.keys()) or (app.storage.user['user'] == None):
@@ -171,16 +171,19 @@ def login_page():
         ui.label("Made with <3 by GOATing team").style("font-size: 12px; color: #888888; margin-top: 10px;")
 
 def check_and_verify(staff_number, password):
-    user = supabase_login(staff_number, password)
+    user, err = supabase_login(staff_number, password)
     if user:
         app.storage.user['user'] = {
             "id": user.id,
             "email": user.email,
         }
         ui.navigate.to('/face_verification')
-    else:
+    elif err:
         app.storage.user['user'] = None
-        ui.notify("Email ou mot de passe incorrect", color="red")
+        ui.notify(err, color="red")
+    else:
+        app.storage.user['user'] = None 
+        ui.notify("Erreur inconnue", color="red")
 
 @ui.page('/face_verification')
 async def face_verification_page():
@@ -297,3 +300,48 @@ def help_page():
         ui.button("Accueil", color=None, on_click=lambda: ui.navigate.to('/login')).style(
             "width: 200px; padding: 10px;"
         )
+
+
+@ui.page('/signup')
+def signup_page():
+    with ui.column().style("width: 100%; height: 100vh; justify-content: center; align-items: center;"):
+        ui.label("Créer un compte").style("font-size: 28px; font-weight: bold; margin-bottom: 20px;")
+        # Première ligne : numéro de compte et badge côte à côte
+        with ui.row().style("justify-content: center; gap: 10px; margin-bottom: 10px;"):
+            staff_number = ui.input(
+                label="N° de compte UVSQ", 
+                placeholder="Votre numéro de compte sur votre carte UVSQ"
+            ).props("clearable").style("width: 300px")
+            tag_id = ui.input(
+                label="Scannez votre badge UVSQ"
+            ).props("disable").style("width: 300px")
+        # Deuxième ligne : email et mot de passe côte à côte
+        with ui.row().style("justify-content: center; gap: 10px; margin-bottom: 10px;"):
+            email = ui.input(
+                label="Email", 
+                placeholder="Entrez votre email"
+            ).props("clearable").style("width: 300px")
+            password = ui.input(
+                label="Mot de passe", 
+                placeholder="Entrez votre mot de passe", 
+                password=True
+            ).props("clearable").style("width: 300px")
+        # Boutons d'action
+        with ui.row().style("margin-top: 20px; justify-content: center; gap: 10px;"):
+            ui.button("Créer un compte", on_click=lambda: check_and_signup(
+                staff_number.value, email.value, password.value, tag_id.value
+            )).style(
+                "font-size: 14px; width: 200px; padding: 10px; background-color: #007acc; color: white;"
+            )
+            ui.button("Retour", on_click=lambda: ui.navigate.to('/login')).style(
+                "font-size: 14px; width: 200px; padding: 10px;"
+            )
+
+def check_and_signup(staff_number, email, password, tag_id):
+    from utils.supabase_utils import signup as supabase_signup
+    user = supabase_signup(staff_number, email, password, tag_id if tag_id != "" else None)
+    if user:
+        app.storage.user['user'] = {"id": user.id, "email": user.email}
+        ui.navigate.to('/logout')
+    else:
+        ui.notify("Erreur lors de la création du compte", color="red")

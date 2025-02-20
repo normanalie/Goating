@@ -27,11 +27,11 @@ def login(staff_number, password):
         )
         if res.user and res.session:
             print('[SUPABASE] Login success as ', res.user)
-            return res.user
-        return None
+            return res.user, None
+        return None, "Invalid staff number or password"
     except Exception as e:
         print('[SUPABASE] Login error: ',e)
-        return None
+        return None, e
     
 def check_login():
     try:
@@ -41,3 +41,25 @@ def check_login():
     except Exception as e:
         print('[SUPABASE] Check login error: ',e)
     return False
+
+def signup(staff_number, email, password, tag_id=None):
+    try:
+        # Création du compte dans Supabase Auth
+        res = supabase.auth.sign_up({
+            "email": email,
+            "password": password
+        })
+        if res.user:
+            # Insertion dans la table staff_to_user
+            data = {
+                "staff_number": staff_number,
+                "user_id": res.user.id,
+                "tag_id": tag_id
+            }
+            supabase.table("staff_to_user").insert(data).execute()
+            print('[SUPABASE] Signup success as', res.user)
+            return res.user
+        return None
+    except Exception as e:
+        print('[SUPABASE] Signup error:', e)
+        return None
