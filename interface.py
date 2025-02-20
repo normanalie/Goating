@@ -274,3 +274,26 @@ async def register_face(user_id):
     else:
         print(f"[INTERFACE] Face registration: no frames captured for user {user_id}")
         ui.notify("Impossible de capturer une image", color="red")
+
+@ui.page('/help')
+def help_page():
+    with ui.column().style("width: 100%; height: 100vh; justify-content: center; align-items: center; overflow: hidden;"):
+        with ui.row().style("align-items: center; margin-bottom: 10px;"):
+            ui.icon("precision_manufacturing").style("font-size: 28px; color: #007acc;")
+            ui.label("STOREBOT").style("font-size: 28px; font-weight: bold; color: #007acc; margin-left: 5px;")
+        ui.label("Aide").style("font-size: 24px; font-weight: bold; margin-bottom: 20px;")
+        ui.markdown(
+            """
+            Storebot vous permet de commander du matériel electronique et de gérer vos emprunts et retours.
+            """
+        ).style("text-align: center; margin-bottom: 20px;")
+        with ui.row().style("margin-top: 20px; justify-content: center; gap: 10px;"):
+            ui.button("Créer un compte", on_click=lambda: ui.navigate.to('/signup')).style(
+                "width: 200px; padding: 10px; background-color: #007acc; color: white;"
+            )
+            ui.button("Mot de passe oublié", on_click=lambda: ui.navigate.to('/signup')).style(
+                "width: 200px; padding: 10px; background-color: #007acc; color: white;"
+            )
+        ui.button("Accueil", color=None, on_click=lambda: ui.navigate.to('/login')).style(
+            "width: 200px; padding: 10px;"
+        )
