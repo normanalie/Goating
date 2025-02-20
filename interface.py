@@ -10,7 +10,7 @@ DISABLE_LOGIN = True  # WARNING NOT TO BE USED IN PRODUCTION
 def is_user_connected():
     if (not check_login()) or (not 'user' in app.storage.user.keys()) or (app.storage.user['user'] == None):
         if DISABLE_LOGIN:
-            app.storage.user['user'] = {"id": "developper", "email": "developper"}
+            app.storage.user['user'] = {"id": "developper", "email": "developper@test.com"}
             return True
         return False
     return True
@@ -36,7 +36,8 @@ async def home_page():
         )
 
     # Bloc central contenant les 3 boutons en colonne
-    with ui.column().style("width: 100%; justify-content: center; align-items: center; margin-top: 80px;"):
+    with ui.column().style("width: 100%; justify-content: center; align-items: center; margin-top: 60px;"):
+        ui.label("Connecté en tant que " + app.storage.user['user']['email']).style("font-size: 14px; margin-bottom: 10px;")
         ui.button("Mes commandes", on_click=lambda: ui.navigate.to('/orders')).style(
             "margin-bottom: 10px; width: 200px; padding: 10px; background-color: #007acc; color: white;"
         )
