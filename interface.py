@@ -5,7 +5,7 @@ from utils.supabase_utils import login as supabase_login, check_login, supabase 
 import base64
 import asyncio 
 
-DISABLE_LOGIN = False  # WARNING NOT TO BE USED IN PRODUCTION
+DISABLE_LOGIN = True  # WARNING NOT TO BE USED IN PRODUCTION
 
 def is_user_connected():
     if (not check_login()) or (not 'user' in app.storage.user.keys()) or (app.storage.user['user'] == None):
@@ -235,12 +235,12 @@ async def register_face(user_id):
     # Capture quelques frames pour obtenir un bon encoding
     frames = []
     # Créer la flèche en haut au centre
+    
+    # Première étape : flèche au centre et capture de la première image
     arrow = ui.icon("arrow_upward").style(
         "position: fixed; top: 10px; left: 50%; transform: translateX(-50%); font-size: 48px; color: #007acc; z-index: 1000;"
     )
-
-    # Première étape : flèche au centre et capture de la première image
-    await asyncio.sleep(1)  # attendre 1 seconde
+    await asyncio.sleep(0.5)
     frame1 = capture_frame()
     if frame1 is not None:
         frames.append(frame1)
@@ -262,14 +262,18 @@ async def register_face(user_id):
     # Supprimer la flèche après la capture
     arrow.style("display: none;")
     arrow.delete()
+    # Afficher un loader
+    ui.spinner(size='lg').style(
+        "position: fixed; top: 10px; left: 50%; transform: translateX(-50%); font-size: 48px; color: #007acc; z-index: 1000;"
+    )
+    await asyncio.sleep(0.5)
+
 
     if frames:
         print(f"[INTERFACE] Face registration: captured {len(frames)} frames for user {user_id}")
-        # Utilisation d'asyncio.to_thread pour ne pas bloquer l'event loop si add_new_face est synchrone
         success = await add_new_face(supabase_client, user_id, frames)
         if success:
-            ui.notify("Visage enregistré, vous pouvez maintenant vérifier votre visage.", color="green")
-            ui.timer(2, lambda: ui.navigate.to('/face_verification'), once=True)
+            ui.navigate.to('/face_verification')
         else:
             print(f"[INTERFACE] Face registration: failed to add face for user {user_id}")
             ui.notify("Impossible d'enregistrer le visage dans la DB. Veuillez réessayer.", color="red")
@@ -342,6 +346,6 @@ def check_and_signup(staff_number, email, password, tag_id):
     user = supabase_signup(staff_number, email, password, tag_id if tag_id != "" else None)
     if user:
         app.storage.user['user'] = {"id": user.id, "email": user.email}
-        ui.navigate.to('/logout')
+        logout()
     else:
         ui.notify("Erreur lors de la création du compte", color="red")

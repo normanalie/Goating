@@ -22,17 +22,17 @@ rows = [
 ]
 
 # Fonction de mise à jour des états
-def update_states():
-    rows[0]['state'] = "connecte" if check_supabase() else "error"
-    rows[1]['state'] = "connecte" if check_camera() else "error"
-    rows[2]['state'] = "connecte" if check_serial_connection() else "error"
+# def update_states():
+#     rows[0]['state'] = "connecte" if check_supabase() else "error"
+#     rows[1]['state'] = "connecte" if check_camera() else "error"
+#     rows[2]['state'] = "connecte" if check_serial_connection() else "error"
 
 # Configurer l'interface utilisateur
 # setup_interface(ui, columns, rows, update_states)
 
 
 # Initialiser les états au lancement
-update_states()
+#update_states()
 
 @app.get('/video_stream')
 async def video_stream_route():
