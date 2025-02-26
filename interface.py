@@ -1,7 +1,7 @@
 from nicegui import ui, app
 import time
 from utils.camera_utils import load_face_from_supabase, capture_frame, add_new_face, verify_face, frame_to_data_uri
-from utils.supabase_utils import login as supabase_login, check_login, supabase as supabase_client
+from utils.supabase_utils import login as supabase_login, check_login, supabase as supabase_client, get_orders, get_order_items
 import base64
 import asyncio 
 
@@ -349,3 +349,81 @@ def check_and_signup(staff_number, email, password, tag_id):
         logout()
     else:
         ui.notify("Erreur lors de la création du compte", color="red")
+
+
+@ui.page('/orders')
+async def orders_page():
+    if not is_user_connected():
+        ui.navigate.to('/login')
+        return
+
+    user = app.storage.user['user']
+    user_id = user["id"]
+
+    # Récupérer les commandes de l'utilisateur en déléguant la requête à un thread
+    orders_data = await asyncio.to_thread(get_orders, user_id)
+
+    with ui.column().style("padding: 20px;"):
+        ui.label("Mes commandes").style("font-size: 24px; font-weight: bold; margin-bottom: 20px;")
+        if orders_data:
+            for order in orders_data:
+                order_id = order["id"]
+                order_name = order["name"]
+                created_at = order["created_at"]
+                with ui.card().classes("q-pa-md q-mb-md"):
+                    ui.label(f"Commande : {order_name}").style("font-size: 16px;")
+                    ui.label(f"Date : {created_at}").style("font-size: 14px; color: gray;")
+                    # Bouton pour afficher les détails de la commande
+                    ui.button("Détails", on_click=lambda order_id=order_id: ui.navigate.to(f'/order/{order_id}')).style("margin-top: 10px;")
+        else:
+            ui.label("Aucune commande trouvée.").style("font-size: 16px;")
+        
+        ui.button("Retour", on_click=lambda: ui.navigate.to('/')).style("margin-top: 20px;")
+
+
+@ui.page('/order/{order_id}')
+async def order_detail_page(order_id: str):
+    if not is_user_connected():
+        ui.navigate.to('/login')
+        return
+
+    # Récupérer les items de la commande via la fonction dans supabase_utils
+    order_items = await asyncio.to_thread(get_order_items, order_id)
+
+    with ui.column().style("padding: 20px;"):
+        ui.label(f"Détails de la commande {order_id}")\
+          .style("font-size: 24px; font-weight: bold; margin-bottom: 20px;")
+
+        if order_items:
+            # Préparation des données pour le tableau
+            rows = [
+                {
+                    "denom": item.get('boxes', {}).get('material_types', {}).get('name', "N/A"),
+                    "image": item.get('boxes', {}).get('material_types', {}).get('image', ""),
+                    "quantity": item['quantity'],
+                    "action": item['action'],
+                    "loan": item.get('loan_item_id', "")
+                }
+                for item in order_items
+            ]
+            table = ui.table(
+                columns=[
+                    {"name": "image", "label": "Image", "field": "image"},
+                    {"name": "denom", "label": "Dénomination", "field": "denom"},
+                    {"name": "quantity", "label": "Quantité", "field": "quantity"},
+                    {"name": "action", "label": "Action", "field": "action"},
+                    {"name": "loan", "label": "Emprunt initial", "field": "loan"},
+                ],
+                rows=rows
+            ).style("width: 100%;")
+
+            # Slot personnalisé pour afficher l'image
+            table.add_slot('body-cell-image', """
+                <q-td :props="props">
+                    <img :src="props.row.image" style="width: 50px; height: auto;" alt="Image de l'item" />
+                </q-td>
+            """)
+        else:
+            ui.label("Aucun item trouvé pour cette commande.").style("font-size: 16px;")
+        
+        ui.button("Retour", on_click=lambda: ui.navigate.to('/orders')).style("margin-top: 20px;")
