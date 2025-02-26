@@ -1,7 +1,7 @@
 from nicegui import ui, app
 import time
 from utils.camera_utils import load_face_from_supabase, capture_frame, add_new_face, verify_face, frame_to_data_uri
-from utils.supabase_utils import login as supabase_login, check_login, supabase as supabase_client, get_orders, get_order_items
+from utils.supabase_utils import login as supabase_login, check_login, supabase as supabase_client, get_orders, get_order_items, toggle_order_item, get_box
 import base64
 import asyncio 
 
@@ -387,43 +387,90 @@ async def order_detail_page(order_id: str):
         ui.navigate.to('/login')
         return
 
-    # Récupérer les items de la commande via la fonction dans supabase_utils
+    # Récupérer les order_items via Supabase
     order_items = await asyncio.to_thread(get_order_items, order_id)
 
     with ui.column().style("padding: 20px;"):
-        ui.label(f"Détails de la commande {order_id}")\
-          .style("font-size: 24px; font-weight: bold; margin-bottom: 20px;")
-
+        ui.label(f"Détails de la commande {order_id}").style("font-size: 24px; font-weight: bold; margin-bottom: 20px;")
         if order_items:
-            # Préparation des données pour le tableau
-            rows = [
-                {
-                    "denom": item.get('boxes', {}).get('material_types', {}).get('name', "N/A"),
-                    "image": item.get('boxes', {}).get('material_types', {}).get('image', ""),
-                    "quantity": item['quantity'],
-                    "action": item['action'],
-                    "loan": item.get('loan_item_id', "")
-                }
-                for item in order_items
-            ]
+            # Préparer les données pour le tableau
+            rows = []
+            for item in order_items:
+                # La jointure renvoie les infos de la boîte dans item_id
+                material = item.get("item_id", {}) 
+                box = await asyncio.to_thread(get_box, item.get("item_id", {}).get("id"))
+                rows.append({
+                    "order_item_id": item.get("id"),
+                    "denom": material.get("name", "N/A"),
+                    "image": material.get("image", ""),
+                    "quantity": item.get("quantity", 0),
+                    "status": item.get("status", "pending"),
+                    "position": f"Ligne {box.get('row', '?')} / Colonne {box.get('col', '?')}",
+                    "type": material.get("type", "consommable")
+                })
             table = ui.table(
                 columns=[
                     {"name": "image", "label": "Image", "field": "image"},
                     {"name": "denom", "label": "Dénomination", "field": "denom"},
                     {"name": "quantity", "label": "Quantité", "field": "quantity"},
-                    {"name": "action", "label": "Action", "field": "action"},
-                    {"name": "loan", "label": "Emprunt initial", "field": "loan"},
+                    {"name": "position", "label": "Position", "field": "position"},
+                    {"name": "action", "label": "Action", "field": "action"}
                 ],
                 rows=rows
             ).style("width: 100%;")
 
-            # Slot personnalisé pour afficher l'image
+            # Slot pour afficher l'image
             table.add_slot('body-cell-image', """
                 <q-td :props="props">
                     <img :src="props.row.image" style="width: 50px; height: auto;" alt="Image de l'item" />
                 </q-td>
             """)
+
+            # Slot pour la colonne Action
+            table.add_slot('body-cell-action', """
+                <q-td :props="props">
+                    <q-btn 
+                      v-if="props.row.status !== 'retrieved'" 
+                      label="Récupérer" 
+                      color="primary" 
+                      @click="() => { $emit('toggle-item', props.row.order_item_id) }" />
+                    <q-btn 
+                      v-else-if="props.row.status === 'retrieved' && props.row.type !== 'consommable'" 
+                      label="Redéposer" 
+                      color="secondary" 
+                      @click="() => { $emit('toggle-item', props.row.order_item_id) }" />
+                    <q-btn 
+                      v-else 
+                      label="Déjà récupéré" 
+                      color="grey" 
+                      disable />
+                </q-td>
+            """)
+            table.on("toggle-item", lambda order_item_id: toggle_item(order_item_id))
+            
+            ui.button("Tout récupérer", on_click=lambda: toggle_all_items(rows)).style("margin-top: 20px; width: 200px; padding: 10px; background-color: #007acc; color: white;")
         else:
             ui.label("Aucun item trouvé pour cette commande.").style("font-size: 16px;")
         
         ui.button("Retour", on_click=lambda: ui.navigate.to('/orders')).style("margin-top: 20px;")
+
+def toggle_item(order_item_id):
+    result = toggle_order_item(order_item_id)
+    if result:
+        new_status = result.get("status")
+        position = result.get("position")
+        item_type = result.get("type")
+        if new_status == "retrieved":
+            ui.notify(f"Item récupéré. Position: {position}", color="green")
+        elif new_status == "returned":
+            ui.notify("Item déposé", color="green")
+        # Pour actualiser l'affichage, on peut recharger la page
+        ui.navigate.to(ui.current_path())
+    else:
+        ui.notify("Erreur lors de la mise à jour de l'item", color="red")
+
+def toggle_all_items(rows):
+    for row in rows:
+        # On applique toggle_item sur chaque order_item
+        toggle_item(row["order_item_id"])
+    ui.notify("Action sur tous les items effectuée", color="green")

@@ -77,7 +77,7 @@ def get_order_items(order_id):
     try:
         # Effectue une requête en joignant la table boxes et, via celle-ci, material_types pour récupérer le nom de l'objet
         res = supabase.table("order_items").select(
-            "*, boxes(material_type_id, row, col, stack_level, stock, status, material_types(name, image, characteristics))"
+            "*, item_id(id, name, image, characteristics)"
         ).eq("order_id", order_id).execute()
         return res.data if res.data is not None else []
     except Exception as e:
@@ -92,4 +92,44 @@ def get_all_items():
     except Exception as e:
         print("[SUPABASE] Error fetching items:", e)
         return []
+    
+def get_box(item_id):
+    try:
+        res = supabase.table("boxes").select("*").eq("material_type_id", item_id).execute()
+        return res.data[0] if res.data is not None else {}
+    except Exception as e:
+        print("[SUPABASE] Error fetching box:", e)
+        return {}
+
+def toggle_order_item(order_item_id):
+    try:
+        # Récupérer l'order_item avec les informations de la boîte (row et col)
+        res = supabase.table("order_items").select("*, item_id(row, col, material_types(type))").eq("id", order_item_id).execute()
+        if not res.data or len(res.data) == 0:
+            return None
+        item = res.data[0]
+        current_status = item.get("status", "pending")
+        # Déterminer le nouveau statut :
+        # Si l'item n'est pas encore récupéré, on passe à "retrieved"
+        # Sinon, si déjà récupéré et que l'item est durable (type != 'consommable'), on passe à "returned"
+        joined = item.get("item_id", {})
+        mat_type = joined.get("material_types", {}) or {}
+        item_type = mat_type.get("type", "consommable")
+        if current_status != "retrieved":
+            new_status = "retrieved"
+        else:
+            # Seul le matériel durable peut être redéposé
+            new_status = "returned" if item_type != "consommable" else current_status
+
+        # Mise à jour de l'order_item dans Supabase
+        update_res = supabase.table("order_items").update({"status": new_status}).eq("id", order_item_id).execute()
+        # Récupérer la position de la boîte
+        row = joined.get("row", "?")
+        col = joined.get("col", "?")
+        position = f"Ligne {row} / Colonne {col}"
+        return {"status": new_status, "position": position, "type": item_type}
+    except Exception as e:
+        print("[SUPABASE] Error toggling order item:", e)
+        return None
+
 
