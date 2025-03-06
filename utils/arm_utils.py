@@ -10,3 +10,9 @@ def check_serial_connection():
         return response == "PONG"  # Vérifie si le Pico répond avec "PONG"
     except serial.SerialException:
         return False
+
+def pick(line, col):
+    pass
+
+def drop():
+    pass
