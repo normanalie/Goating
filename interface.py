@@ -1,7 +1,7 @@
 from nicegui import ui, app
 import time
 from utils.camera_utils import load_face_from_supabase, capture_frame, add_new_face, verify_face, frame_to_data_uri
-from utils.supabase_utils import login as supabase_login, check_login, supabase as supabase_client, get_orders, get_order_items, toggle_order_item, get_box
+from utils.supabase_utils import login as supabase_login, check_login, supabase as supabase_client, get_orders, get_order_items, toggle_order_item, get_box, get_order
 import base64
 import asyncio 
 
@@ -388,10 +388,13 @@ async def order_detail_page(order_id: str):
         return
 
     # Récupérer les order_items via Supabase
+    order_details = await asyncio.to_thread(get_order, order_id)
+    print(order_details)
     order_items = await asyncio.to_thread(get_order_items, order_id)
+    print(order_items)
 
-    with ui.column().style("padding: 20px;"):
-        ui.label(f"Détails de la commande {order_id}").style("font-size: 24px; font-weight: bold; margin-bottom: 20px;")
+    with ui.column().style("padding: 20px; width: 100%;"):
+        ui.label(f"Détails de la commande {order_details.get('name', 'N/A')}").style("font-size: 24px; font-weight: bold; margin-bottom: 20px;")
         if order_items:
             # Préparer les données pour le tableau
             rows = []
@@ -422,7 +425,7 @@ async def order_detail_page(order_id: str):
             # Slot pour afficher l'image
             table.add_slot('body-cell-image', """
                 <q-td :props="props">
-                    <img :src="props.row.image" style="width: 50px; height: auto;" alt="Image de l'item" />
+                    <img :src="props.row.image ? props.row.image : 'https://upload.wikimedia.org/wikipedia/commons/d/d2/Blank.png'" style="width: 50px; height: auto;" alt="Image de l'item" />
                 </q-td>
             """)
 
@@ -446,15 +449,17 @@ async def order_detail_page(order_id: str):
                       disable />
                 </q-td>
             """)
-            table.on("toggle-item", lambda order_item_id: toggle_item(order_item_id))
+            table.on("toggle-item", toggle_item)
             
-            ui.button("Tout récupérer", on_click=lambda: toggle_all_items(rows)).style("margin-top: 20px; width: 200px; padding: 10px; background-color: #007acc; color: white;")
+            ui.button("Tout récupérer", on_click=lambda: toggle_all_items(rows)).style("margin-top: 20px; margin-right: 20px; width: 200px; padding: 10px; background-color: #007acc; color: white;")
         else:
             ui.label("Aucun item trouvé pour cette commande.").style("font-size: 16px;")
         
         ui.button("Retour", on_click=lambda: ui.navigate.to('/orders')).style("margin-top: 20px;")
 
 def toggle_item(order_item_id):
+    ui.notify("Erreur: impossible de communiquer avec le bras", color="red")
+    return
     result = toggle_order_item(order_item_id)
     if result:
         new_status = result.get("status")
@@ -470,6 +475,8 @@ def toggle_item(order_item_id):
         ui.notify("Erreur lors de la mise à jour de l'item", color="red")
 
 def toggle_all_items(rows):
+    ui.notify("Erreur: impossible de communiquer avec le bras", color="red")
+    return
     for row in rows:
         # On applique toggle_item sur chaque order_item
         toggle_item(row["order_item_id"])

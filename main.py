@@ -2,7 +2,7 @@ from nicegui import ui, app
 from fastapi import Response
 from utils.supabase_utils import check_supabase
 from utils.camera_utils import check_camera, video_stream, capture_frame
-from utils.serial_utils import check_serial_connection
+from utils.arm_utils import check_serial_connection
 from interface import setup_interface
 import time
 

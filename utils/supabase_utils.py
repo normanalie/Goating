@@ -73,11 +73,19 @@ def get_orders(user_id):
         return []
 
 
+def get_order(order_id):
+    try:
+        res = supabase.table("orders").select("*").eq("id", order_id).execute()
+        return res.data[0] if res.data is not None else {}
+    except Exception as e:
+        print("[SUPABASE] Error fetching order:", e)
+        return {}
+
 def get_order_items(order_id):
     try:
         # Effectue une requête en joignant la table boxes et, via celle-ci, material_types pour récupérer le nom de l'objet
         res = supabase.table("order_items").select(
-            "*, item_id(id, name, image, characteristics)"
+            "*, item_id(id, name, image, characteristics, type)"
         ).eq("order_id", order_id).execute()
         return res.data if res.data is not None else []
     except Exception as e:
