@@ -14,5 +14,8 @@ def check_serial_connection():
 def pick(line, col):
     pass
 
+def pick(namedPosition):
+    pass
+
 def drop():
     pass
