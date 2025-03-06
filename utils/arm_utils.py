@@ -17,5 +17,8 @@ def pick(line, col):
 def pick(namedPosition):
     pass
 
-def drop():
+def drop(line, col):
+    pass
+
+def drop(namedPosition):
     pass
