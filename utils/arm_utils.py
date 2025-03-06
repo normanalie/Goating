@@ -12,13 +12,17 @@ def check_serial_connection():
         return False
 
 def pick(line, col):
+    # Code pour communiquer avec le Doosan ici. Utiliser le module ROS de python
     pass
 
 def pick(namedPosition):
+    # Code pour communiquer avec le Doosan ici. Utiliser le module ROS de python
     pass
 
 def drop(line, col):
+    # Code pour communiquer avec le Doosan ici. Utiliser le module ROS de python
     pass
 
 def drop(namedPosition):
+    # Code pour communiquer avec le Doosan ici. Utiliser le module ROS de python
     pass
