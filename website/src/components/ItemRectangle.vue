@@ -19,7 +19,7 @@ const goToItem = () => {
 </script>
 
 <template>
-  <div @click="goToItem" class="border border-gray-300 bg-[#DDDBFF] w-[90%] aspect-[13/9] rounded-[0.05em] flex justify-center items-center overflow-hidden transform scale-100 active:scale-97.5" :style="{ width: props.width, height: props.height }">
+  <div @click="goToItem" class="border border-gray-300 bg-[#DDDBFF] w-[90%] aspect-[13/9] rounded-[0.05em] flex justify-center items-center overflow-hidden transform scale-100 active:scale-95" :style="{ width: props.width, height: props.height }">
     <slot></slot>
 </div>
 </template>

@@ -7,7 +7,11 @@ export default {
   theme: {
     extend: {
       fontFamily: {
-        poppins: ["Poppins", "sans-serif"],
+        'poppins': ['Poppins', 'sans-serif'],
+        'franklin': ['"Franklin Gothic Medium"', '"Arial Narrow"', 'Arial', 'sans-serif'],
+        'roboto': ['Roboto', 'sans-serif'],
+        'arial': ['Arial', 'sans-serif'],
+        'inter': ['Inter', 'sans-serif'],
       },
     },
   },

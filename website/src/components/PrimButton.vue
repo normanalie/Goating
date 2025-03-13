@@ -1,5 +1,5 @@
 <template>
-  <button :type="type" :style="{ width: props.width, height: props.height }" class="shadow-inner shadow-white/10 data-[hover]:bg-gray-600 data-[open]:bg-gray-700 data-[focus]:outline-1 data-[focus]:outline-white bg-gray-500">
+  <button :type="type" :style="{ width: props.width, height: props.height }" id="PrimButton" class=" text-white rounded-[0.5vw] border-none cursor-pointer p-[10px] text-center font-inter font-semibold transform scale-100 active:scale-95 " >
     {{ input || 'Empty button' }}
   </button>
 </template>
@@ -14,8 +14,19 @@ const props = defineProps({
 </script>
 
 <style scoped>
+
+#PrimButton{
+  background: #2f27ce;
+  box-shadow: 0 0 15px #2821ab;
+}
+
+#PrimButton:active{
+  background: #463eda;
+}
+
+/*
 button {
-  /*background-color: #2F27CE;*/
+  background-color: #2F27CE;
   color: white;
   border-radius: 0.5vw;
   border: none;
@@ -25,8 +36,5 @@ button {
   font-family: 'Franklin Gothic Medium', 'Arial Narrow', Arial, sans-serif;
   box-shadow: 2px 4px 10px rgba(0, 0, 0, 0.5);
 }
-
-button:active {
-  transform: scale(0.95);
-}
+*/
 </style>

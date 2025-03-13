@@ -22,6 +22,8 @@ const imgOption = ref('10vw');
 const otherItems = ref('10vw');
 const mainImgSrc = ref('');
 
+const itemData = ref([]);
+
 //const test = ref(main);
 const router = useRoute();
 const itemId = ref(router.params.id).value;
@@ -41,7 +43,7 @@ async function getItemData(materialId){
         return [];
     }
 }
-
+/* CONCEPTION TRES NULLE A REVOIR (je peux juste prendre un tableau avec les donnees json et l'utiliser comme j'ai fait pour Orders) */
 function displayData(data){
   if (data.length > 0) {
     const item = data[0];
@@ -57,7 +59,9 @@ function displayData(data){
 onMounted(() => {
   getItemData(itemId)
   .then((data) => {
-      displayData(data);
+    itemData.value = data;
+    console.log(itemData.value);
+      displayData(itemData.value);
     })
     .catch((error) => {
       console.error("Erreur lors de la récupération des données:", error);
@@ -71,8 +75,10 @@ onMounted(() => {
     <main class="h-full">
       <div class="item">
         <div class="imgDiv">
-          <Rectangle id="mainImg" :imgSrc="mainImgSrc"
-          :width=mainImgWidth></Rectangle>
+          <Rectangle id="mainImg"
+          :width=mainImgWidth>
+          <img v-if="mainImgSrc" alt="" :src="mainImgSrc" class="w-full h-full object-cover">
+          </Rectangle>
           <div class="imgSelection">
             <Rectangle class="imgOption"
             :width=imgOption></Rectangle>
@@ -86,12 +92,13 @@ onMounted(() => {
         </div>
         <div class="itemInfo">
           <div class="itemHeader">
+
             <h2 class="text-[3.5em]">{{ itemName }}</h2>
             <h3>{{ itemRef }}</h3>
           </div>
           <h3 class="text-[1.5em]">{{ itemType }}</h3>
           <p>{{ itemDescription }}</p>
-          <PrimButton id="addBtn"
+          <PrimButton
           :input="'Ajouter au panier'"
           :width="'15vw'"></PrimButton>
         </div>
@@ -181,6 +188,7 @@ onMounted(() => {
   flex: 0 0 300px; /* Largeur minimale avant wrap */
   display: flex;
   flex-direction: column;
+  flex-shrink: 1;
   gap: 1vw;
   margin-left: 0.75vw;
 }
@@ -210,10 +218,6 @@ onMounted(() => {
   display: flex;
   flex-direction: row;
   gap: 0.75vw;
-}
-
-#description{
-
 }
 
 </style>
