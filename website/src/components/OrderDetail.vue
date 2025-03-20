@@ -24,7 +24,7 @@ const props = defineProps({
         :width="'10vw'">
         <slot name="imgs"></slot>
       </Rectangle>
-      <div class="flex flex-col justify-between gap-3">
+      <div class="flex flex-col justify-between gap-3 w-[60%]">
         <slot name="title"></slot>
         <div>
           <slot name="details"></slot>

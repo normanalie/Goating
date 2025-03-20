@@ -5,6 +5,7 @@ import Home from '@/Views/MenuModule/Home.vue'
 import ItemInfo from '@/Views/MenuModule/ItemInfo.vue'
 import AuthLogin from '@/Views/AuthModule/AuthLogin.vue'
 import Orders from '@/Views/OrdersModule/Orders.vue'
+import Cart from '@/Views/CartHandlerModule/Cart.vue'
 
 const routes = [
   {
@@ -29,6 +30,12 @@ const routes = [
     path: '/myorders',
     name: 'Orders',
     component: Orders,
+    meta: { layout: MainLayout },
+  },
+  {
+    path: '/cart',
+    name: 'Cart',
+    component: Cart,
     meta: { layout: MainLayout },
   },
   /*{ path: '/session?/orders', name: 'Orders', component: Orders}*/

@@ -24,6 +24,7 @@
 <script setup>
 import { ref } from 'vue'
 import { useRouter } from 'vue-router'
+import { supabase } from '@/supabase.js';
 import { collapsed, toggleSidebar } from './state'
 import homeIcon from '@/components/icons/home.svg'
 import boxIcon from '@/components/icons/box.svg'
@@ -32,10 +33,29 @@ import SideBarLink from './SideBarLink.vue'
 
 const router = useRouter()
 
+const logout = async () => {
+  const { error } = await supabase.auth.signOut(); // Déconnexion Supabase
+  if (error) {
+    console.error("Erreur lors de la déconnexion :", error);
+  } else {
+    router.push('/login'); // Redirection vers la page de connexion
+  }
+}
+
+async function signOut() {
+  const { error } = await supabase.auth.signOut();
+  if (error) {
+    console.error('Erreur de déconnexion:', error.message);
+  } else {
+    console.log('Déconnexion réussie');
+  }
+}
+
 const menu = ref([
   { name: 'Menu', icon: homeIcon, route: '/' },
   { name: 'Mes commandes', icon: boxIcon, route: '/myorders'},
-  { name: 'Panier', icon: cartIcon, route: 'Cart'}
+  { name: 'Panier', icon: cartIcon, route: '/cart'},
+  { name: 'Se déconnecter', icon: '', route:'/login' } // Utilisation de l'action
 ])
 </script>
 

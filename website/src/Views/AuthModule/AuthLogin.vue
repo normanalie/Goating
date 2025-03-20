@@ -6,10 +6,9 @@ import InputField from '@/components/InputField.vue'
 import PrimButton from '@/components/PrimButton.vue'
 import SecButton from '@/components/SecButton.vue'
 import TerButton from '@/components/TerButton.vue'
-
+import { supabase } from '@/supabase.js';
 
 // Initialisation de Supabase
-const supabase = createClient(import.meta.env.VITE_SUPABASE_URL, import.meta.env.VITE_SUPABASE_KEY)
 
 // Gestion des données et de l'état utilisateur
 const router = useRouter()

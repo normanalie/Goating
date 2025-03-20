@@ -1,13 +1,11 @@
 <script setup>
 import { ref, onMounted } from 'vue';
 import ElemDetail from '@/components/OrderDetail.vue';
-import { createClient } from '@supabase/supabase-js';
+import { supabase } from '@/supabase.js';
 import PrimButton from '@/components/PrimButton.vue';
 
 
-const supabaseKey = import.meta.env.VITE_SUPABASE_KEY
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabase = createClient(supabaseUrl, supabaseKey)
+
 
 const userId = ref(null);
 const showDetails = ref([]);
@@ -29,10 +27,9 @@ async function getUserSession() {
 
   if (error) {
     console.error("Erreur lors de la récupération de la session :", error.message);
-    return null; // Retourne null si une erreur survient
+    return null;
   }
 
-  // Si l'utilisateur est connecté, on renvoie son ID, sinon on renvoie null
   return data.session?.user?.id || null;
 }
 
@@ -51,9 +48,10 @@ async function fetchOrdersWithItems(userId) {
       `)
       .eq('user_id', userId);
 
+
     if (error) throw error;
 
-    console.log('Data fetched successfully');
+    console.log('Order fetched successfully');
     return data || [];
   } catch (err) {
     console.error('[SUPABASE] Error fetching orders:', err);
@@ -111,11 +109,15 @@ onMounted(async () =>{
     <header>
       <h1 class="text-left text-[2em] font-bold ml-4">Mes Commandes</h1>
     </header>
-    <body>
-      <div v-for="(order, index) in orders" :key="order.id" class="mt-4 flex flex-col gap-4 flex-wrap flex-shrink">
+    <body class="mt-4">
+      <div v-for="(order, index) in orders" :key="order.id" class=" mt-[-2.1%] flex flex-col gap-4 flex-wrap flex-shrink">
         <ElemDetail class="p-6">
           <template #imgs>
-              <img v-if="order.order_items[0].material_items.image" :src="order.order_items[0].material_items.image" alt="Image" class="w-full h-full object-cover">
+            <img
+            v-if="order.order_items?.length > 0 && order.order_items[0]?.material_items?.image"
+            :src="order.order_items[0].material_items.image"
+            alt="Image" class="w-full h-full object-cover"
+            >
           </template>
 
           <template #title>
@@ -169,7 +171,7 @@ onMounted(async () =>{
           </div>
         </Transition>
         <div class="flex justify-center">
-            <hr v-if="orders.length" class="mt-[-1.8%] border-t border-gray-500 w-[90%]">
+            <hr v-if="orders.length" class="mt-[-1.5%] border-t border-gray-500 w-[90%]">
         </div>
       </div>
     </body>

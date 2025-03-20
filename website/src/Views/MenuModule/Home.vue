@@ -4,14 +4,11 @@ import { ref, onMounted } from 'vue'
 import Card from '@/components/ItemCard.vue'
 import Search from '@/components/SearchBTN.vue'
 import Button from '@/components/Button.vue'
-import { createClient } from '@supabase/supabase-js'
+import { supabase } from '@/supabase.js';
 import SecBTN from '@/components/SecButton.vue'
 
 // Initialisation de Supabase (remplace par tes credentials)
 
-const supabaseKey = import.meta.env.VITE_SUPABASE_KEY
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL
-const supabase = createClient(supabaseUrl, supabaseKey)
 const router = useRouter()
 
 const user = ref(null)
@@ -19,7 +16,7 @@ const user = ref(null)
 const search = ref('Rechercher')
 //const filter = ref('Filtrer')
 
-function resetDOM() {
+function resetDOM() { //v-for avec un fetch a la DB plus opti(cf orders etc)
 
   // Sélection du premier élément avec la classe "wrapper"
   const wrapper = document.getElementsByClassName('wrapper')[0]

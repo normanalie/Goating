@@ -3,16 +3,12 @@ import { createRouter, createWebHistory, useRoute } from 'vue-router'
 import { onMounted, ref } from 'vue'
 import Rectangle from '@/components/ItemRectangle.vue';
 import PrimButton from '@/components/PrimButton.vue';
-import { createClient } from '@supabase/supabase-js';
-
-// Initialisation de Supabase (remplace par tes credentials)
-
-const supabaseKey = import.meta.env.VITE_SUPABASE_KEY;
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-
-const supabase = createClient(supabaseUrl, supabaseKey);
+import { supabase } from '@/supabase.js';
+import Slider from '@/components/Slider.vue';
+import { useOrderStore } from '@/stores/orderStore';
 
 
+/* a refaire ici */
 const itemName = ref("Item Name");
 const itemRef = ref("Référence: -");
 const itemType = ref("Type: -");
@@ -20,13 +16,18 @@ const itemDescription = ref('');
 const mainImgWidth = ref('45vw');
 const imgOption = ref('10vw');
 const otherItems = ref('10vw');
+/* */
 const mainImgSrc = ref('');
 
 const itemData = ref([]);
 
 //const test = ref(main);
+const userId = ref('');
 const router = useRoute();
 const itemId = ref(router.params.id).value;
+const sliderValue = ref(0);
+const orderStore = useOrderStore();
+
 
 async function getItemData(materialId){
   try{
@@ -43,20 +44,45 @@ async function getItemData(materialId){
         return [];
     }
 }
+
+async function getUserSession() {
+  const { data, error } = await supabase.auth.getSession();
+
+  if (error) {
+    console.error("Erreur lors de la récupération de la session :", error.message);
+    return null;
+  }
+
+  return data.session?.user?.id || null;
+}
+
+function addItemToCart() {
+  //Ajouter la logique
+  const newItem = { user_id: userId.value, item_id: itemRef.value, name: itemName.value, image: mainImgSrc.value, quantity: sliderValue.value, status: 'reserved' }
+  orderStore.addItemToOrder(newItem)
+  //orderStore.clearOrders()
+  console.log("Bouton 'Ajouter au panier' appuyé.")
+}
+
 /* CONCEPTION TRES NULLE A REVOIR (je peux juste prendre un tableau avec les donnees json et l'utiliser comme j'ai fait pour Orders) */
 function displayData(data){
   if (data.length > 0) {
     const item = data[0];
 
     itemName.value = item.name;
-    itemRef.value = "Référence: " + item.id.split("-").pop();
+    itemRef.value = item.id;
     itemType.value = "Type: " + item.type;
     itemDescription.value = item.description || "Aucune description disponible.";
     mainImgSrc.value = item.image;
   }
 }
 
-onMounted(() => {
+const updateSliderValue = (newValue) => {
+  sliderValue.value = newValue;
+};
+
+onMounted(async () => {
+  userId.value = await getUserSession();
   getItemData(itemId)
   .then((data) => {
     itemData.value = data;
@@ -94,13 +120,18 @@ onMounted(() => {
           <div class="itemHeader">
 
             <h2 class="text-[3.5em]">{{ itemName }}</h2>
-            <h3>{{ itemRef }}</h3>
+            <h3> Référence: {{ itemRef.split("-").pop() }}</h3>
           </div>
           <h3 class="text-[1.5em]">{{ itemType }}</h3>
           <p>{{ itemDescription }}</p>
+          <Slider
+          :sliderId="itemRef"
+          @update:value="updateSliderValue"></Slider>
+          <p>{{ sliderValue }}</p>
           <PrimButton
           :input="'Ajouter au panier'"
-          :width="'15vw'"></PrimButton>
+          :width="'15vw'"
+          @click="addItemToCart"></PrimButton>
         </div>
       </div>
       <div class="ml-[4.75vw] m-[3vh] text-[2em]">
