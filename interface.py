@@ -2,6 +2,7 @@ from nicegui import ui, app
 import time
 from utils.camera_utils import load_face_from_supabase, capture_frame, add_new_face, verify_face, frame_to_data_uri
 from utils.supabase_utils import login as supabase_login, check_login, supabase as supabase_client, get_orders, get_order_items, toggle_order_item, get_box, get_order
+from utils.rfid_utils import get_staff_number_by_badge
 import base64
 import asyncio 
 
@@ -152,31 +153,20 @@ def add_face(name_input):
         ui.notify("Aucun visage détecté, veuillez réessayer", color="red")
 
 
-@ui.page('/login')
-def login_page():
-    with ui.column().style("width: 100%; height: 100vh; justify-content: center; align-items: center;"):
-        with ui.row().style("align-items: center; margin-bottom: 10px;"):
-            ui.icon("precision_manufacturing").style("font-size: 28px; color: #007acc;")
-            ui.label("STOREBOT").style("font-size: 28px; font-weight: bold; color: #007acc; margin-left: 5px;")
-        staff_number = ui.input(label="N° de compte", placeholder="Entrez votre n° étudiant").props("clearable").style("margin-bottom: 10px; width: 410px")
-        password = ui.input(label="Mot de passe", placeholder="Entrez votre mot de passe", password=True).props("clearable").style("margin-bottom: 10px; width: 410px")
-        with ui.row().style("margin-top: 20px; justify-content: center; gap: 10px;"):
-            ui.button('Aide', color=None, on_click=lambda: ui.navigate.to('/help')).style(
-                "font-size: 14px; width: 200px; padding: 10px;"
-            )
-            # Au lieu d'aller directement à '/', on va vers la page de vérification du visage
-            ui.button("Connexion", on_click=lambda: check_and_verify(staff_number.value, password.value)).style(
-                "font-size: 14px; width: 200px; padding: 10px; background-color: #007acc; color: white;"
-            )
-        ui.label("Made with <3 by GOATing team").style("font-size: 12px; color: #888888; margin-top: 10px;")
 
-def check_and_verify(staff_number, password):
-    user, err = supabase_login(staff_number, password)
+async def check_and_verify_async(staff_input, password_value):
+    # Si le champ est vide, lance la lecture RFID
+    if staff_input.value.strip() == "":
+        ui.notify("Lecture du badge en cours...", color="primary")
+        staff_num = await asyncio.to_thread(get_staff_number_by_badge)
+        if staff_num:
+            staff_input.value = str(staff_num)
+            ui.notify(f"Badge lu : {staff_num}", color="green")
+            ui.notify("Aucun badge détecté", color="red")
+            return
+    user, err = supabase_login(staff_input.value, password_value)
     if user:
-        app.storage.user['user'] = {
-            "id": user.id,
-            "email": user.email,
-        }
+        app.storage.user['user'] = {"id": user.id, "email": user.email}
         ui.navigate.to('/face_verification')
     elif err:
         app.storage.user['user'] = None
@@ -184,6 +174,21 @@ def check_and_verify(staff_number, password):
     else:
         app.storage.user['user'] = None 
         ui.notify("Erreur inconnue", color="red")
+
+@ui.page('/login')
+def login_page():
+    with ui.column().style("width: 100%; height: 100vh; justify-content: center; align-items: center;"):
+        with ui.row().style("align-items: center; margin-bottom: 10px;"):
+            ui.icon("precision_manufacturing").style("font-size: 28px; color: #007acc;")
+            ui.label("STOREBOT").style("font-size: 28px; font-weight: bold; color: #007acc; margin-left: 5px;")
+        staff_number = ui.input(label="N° de compte", placeholder="Entrez votre n° étudiant (ou laissez vide pour badge)").props("clearable").style("margin-bottom: 10px; width: 410px")
+        password = ui.input(label="Mot de passe", placeholder="Entrez votre mot de passe", password=True).props("clearable").style("margin-bottom: 10px; width: 410px")
+        with ui.row().style("margin-top: 20px; justify-content: center; gap: 10px;"):
+            ui.button('Aide', color=None, on_click=lambda: ui.navigate.to('/help')).style("font-size: 14px; width: 200px; padding: 10px;")
+            # On utilise asyncio.create_task pour lancer la fonction asynchrone
+            ui.button("Connexion", on_click=lambda: asyncio.create_task(check_and_verify_async(staff_number, password.value))).style("font-size: 14px; width: 200px; padding: 10px; background-color: #007acc; color: white;")
+        ui.label("Made with <3 by GOATing team").style("font-size: 12px; color: #888888; margin-top: 10px;")
+
 
 @ui.page('/face_verification')
 async def face_verification_page():
@@ -306,49 +311,44 @@ def help_page():
         )
 
 
+async def check_and_signup_async(staff_input, email_value, password_value, tag_input):
+    # Si le champ du staff number est vide, tente la lecture RFID
+    if staff_input.value.strip() == "":
+        ui.notify("Lecture du badge en cours...", color="primary")
+        staff_num = await asyncio.to_thread(get_staff_number_by_badge)
+        if staff_num:
+            staff_input.value = str(staff_num)
+            ui.notify(f"Badge lu : {staff_num}", color="green")
+        else:
+            ui.notify("Aucun badge détecté", color="red")
+            return
+    from utils.supabase_utils import signup as supabase_signup
+    user = supabase_signup(staff_input.value, email_value, password_value, tag_input.value if tag_input.value.strip() != "" else None)
+    if user:
+        app.storage.user['user'] = {"id": user.id, "email": user.email}
+        # Après inscription, on redirige vers la page de connexion ou directement vers la vérification de visage
+        ui.navigate.to('/login')
+    else:
+        ui.notify("Erreur lors de la création du compte", color="red")
+
+def logout():
+    app.storage.user['user'] = None
+    ui.navigate.to('/login')
+
 @ui.page('/signup')
 def signup_page():
     with ui.column().style("width: 100%; height: 100vh; justify-content: center; align-items: center;"):
         ui.label("Créer un compte").style("font-size: 28px; font-weight: bold; margin-bottom: 20px;")
-        # Première ligne : numéro de compte et badge côte à côte
         with ui.row().style("justify-content: center; gap: 10px; margin-bottom: 10px;"):
-            staff_number = ui.input(
-                label="N° de compte UVSQ", 
-                placeholder="Votre numéro de compte sur votre carte UVSQ"
-            ).props("clearable").style("width: 300px")
-            tag_id = ui.input(
-                label="Scannez votre badge UVSQ"
-            ).props("disable").style("width: 300px")
-        # Deuxième ligne : email et mot de passe côte à côte
+            staff_number = ui.input(label="N° de compte UVSQ", placeholder="Votre numéro de compte sur votre carte UVSQ (ou laissez vide pour badge)").props("clearable").style("width: 300px")
+            tag_id = ui.input(label="Scannez votre badge UVSQ").props("disable").style("width: 300px")
         with ui.row().style("justify-content: center; gap: 10px; margin-bottom: 10px;"):
-            email = ui.input(
-                label="Email", 
-                placeholder="Entrez votre email"
-            ).props("clearable").style("width: 300px")
-            password = ui.input(
-                label="Mot de passe", 
-                placeholder="Entrez votre mot de passe", 
-                password=True
-            ).props("clearable").style("width: 300px")
-        # Boutons d'action
+            email = ui.input(label="Email", placeholder="Entrez votre email").props("clearable").style("width: 300px")
+            password = ui.input(label="Mot de passe", placeholder="Entrez votre mot de passe", password=True).props("clearable").style("width: 300px")
         with ui.row().style("margin-top: 20px; justify-content: center; gap: 10px;"):
-            ui.button("Créer un compte", on_click=lambda: check_and_signup(
-                staff_number.value, email.value, password.value, tag_id.value
-            )).style(
-                "font-size: 14px; width: 200px; padding: 10px; background-color: #007acc; color: white;"
-            )
-            ui.button("Retour", on_click=lambda: ui.navigate.to('/login')).style(
-                "font-size: 14px; width: 200px; padding: 10px;"
-            )
+            ui.button("Créer un compte", on_click=lambda: asyncio.create_task(check_and_signup_async(staff_number, email.value, password.value, tag_id))).style("font-size: 14px; width: 200px; padding: 10px; background-color: #007acc; color: white;")
+            ui.button("Retour", on_click=lambda: ui.navigate.to('/login')).style("font-size: 14px; width: 200px; padding: 10px;")
 
-def check_and_signup(staff_number, email, password, tag_id):
-    from utils.supabase_utils import signup as supabase_signup
-    user = supabase_signup(staff_number, email, password, tag_id if tag_id != "" else None)
-    if user:
-        app.storage.user['user'] = {"id": user.id, "email": user.email}
-        logout()
-    else:
-        ui.notify("Erreur lors de la création du compte", color="red")
 
 
 @ui.page('/orders')
