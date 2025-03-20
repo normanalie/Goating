@@ -7,16 +7,36 @@ import numpy as np
 import json
 import base64
 import asyncio
+import platform
+
+# Fonction de détection du Raspberry Pi
+def is_raspberry_pi():
+    try:
+        with open('/proc/device-tree/model', 'r') as model_file:
+            model = model_file.read().lower()
+            return 'raspberry pi' in model
+    except Exception:
+        return False
+
+# Flag indiquant si l'on est sur un Raspberry Pi
+IS_PI = is_raspberry_pi()
+
+# Si on est sur un Pi, on importe picamera
+if IS_PI:
+    try:
+        from picamera import PiCamera
+        from picamera.array import PiRGBArray
+    except ImportError as e:
+        raise ImportError("Le module picamera est requis sur Raspberry Pi. Installez-le avec 'pip install picamera'") from e
 
 # Charger le classificateur Haar pour la détection des visages
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
-
 
 async def save_faces_to_supabase(supabase_client, user_id, encodings):
     """
     Enregistre plusieurs encodages d'un même visage dans la table "faces".
     Chaque encodage est inséré dans une ligne distincte en utilisant asyncio.to_thread
-    pour ne pas bloquer l'event loop de Nicegui.
+    pour ne pas bloquer l'event loop.
     """
     async def insert_encoding(encoding):
         encoding_json = np.array(encoding).tolist()
@@ -25,7 +45,6 @@ async def save_faces_to_supabase(supabase_client, user_id, encodings):
             "encoding": encoding_json
         }
         try:
-            # Exécute l'appel bloquant dans un thread séparé
             await asyncio.to_thread(supabase_client.table("faces").insert(data).execute)
             print('[CAMERA] Insertion réussie de l\'encoding pour user_id:', user_id)
             return True
@@ -33,13 +52,12 @@ async def save_faces_to_supabase(supabase_client, user_id, encodings):
             print('[CAMERA] Erreur lors de l\'insertion de l\'encoding pour user_id', user_id, ":", e)
             return False
 
-    # Lancer toutes les insertions en parallèle
     results = await asyncio.gather(*(insert_encoding(encoding) for encoding in encodings))
     return all(results)
 
 def load_face_from_supabase(supabase_client, user_id):
     """
-    Charge tous les encodages de la table "faces" pour un user donné,
+    Charge tous les encodages de la table "faces" pour un utilisateur donné,
     convertit chaque encoding (liste de floats) en tableau numpy et retourne un dictionnaire:
       { "name": user_id, "encoding": [array1, array2, ...] }
     """
@@ -47,7 +65,6 @@ def load_face_from_supabase(supabase_client, user_id):
         res = supabase_client.table("faces").select("encoding").eq("user_id", user_id).execute()
         encodings = []
         for row in res.data:
-            # Chaque row contient une liste stockée dans la colonne "encoding"
             encoding_list = row["encoding"]
             arr = np.array(encoding_list, dtype=np.float64)
             encodings.append(arr)
@@ -56,17 +73,25 @@ def load_face_from_supabase(supabase_client, user_id):
         print('[CAMERA] Load face encodings from Supabase error:', e)
         return None
 
-
 def check_camera():
-    """Vérifie si la caméra est accessible."""
+    """Vérifie si la caméra est accessible en fonction de la plateforme."""
     print("[CAMERA] Checking...")
-    cap = cv2.VideoCapture(0)
-    if cap.isOpened():
-        cap.release()
-        return True
+    if IS_PI:
+        try:
+            with PiCamera() as camera:
+                camera.resolution = (640, 480)
+                time.sleep(0.1)  # Temps de warm-up
+            return True
+        except Exception as e:
+            print("[CAMERA] Erreur d'accès à la caméra sur Raspberry Pi:", e)
+            return False
     else:
-        return False
-
+        cap = cv2.VideoCapture(0)
+        if cap.isOpened():
+            cap.release()
+            return True
+        else:
+            return False
 
 def detect_faces_with_name(frame: np.ndarray, stored_data) -> np.ndarray:
     """
@@ -74,16 +99,13 @@ def detect_faces_with_name(frame: np.ndarray, stored_data) -> np.ndarray:
     stored_data est un dictionnaire {"name": user_id, "encoding": [array1, array2, ...]}.
     """
     stored_encodings = stored_data["encoding"]
-    # Réduction de la résolution pour optimiser la détection
     small_frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
     rgb_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
 
-    # Localisation et encodage des visages dans la frame
     face_locations = face_recognition.face_locations(rgb_frame)
     face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
 
     for face_encoding, (top, right, bottom, left) in zip(face_encodings, face_locations):
-        # On compare chaque encoding détecté avec tous les encodages stockés
         matches = face_recognition.compare_faces(stored_encodings, face_encoding, tolerance=0.5)
         name = "No Name"
         if True in matches:
@@ -93,40 +115,49 @@ def detect_faces_with_name(frame: np.ndarray, stored_data) -> np.ndarray:
         cv2.putText(frame, name, (left, top - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
     return frame
 
-
-def video_stream(known_faces = None):
+def video_stream(known_faces=None):
     """
-    Génère un flux vidéo continu avec détection des visages.
+    Génère un flux vidéo continu avec détection des visages en fonction de la plateforme.
     """
-    cap = cv2.VideoCapture(0)
+    if IS_PI:
+        camera = PiCamera()
+        camera.resolution = (640, 480)
+        camera.framerate = 30
+        rawCapture = PiRGBArray(camera, size=(640, 480))
+        time.sleep(0.1)  # Stabilisation de la caméra
 
-    # Configurer la résolution et le framerate
-    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
-    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
-    cap.set(cv2.CAP_PROP_FPS, 30)
+        def generate_frames():
+            for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
+                image = frame.array
+                frame_with_faces = detect_faces_with_name(image, known_faces) if known_faces else image
+                ret, buffer = cv2.imencode('.jpg', frame_with_faces)
+                frame_bytes = buffer.tobytes()
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+                rawCapture.truncate(0)
 
-    if not cap.isOpened():
-        raise RuntimeError("Impossible d'accéder à la caméra")
+        return StreamingResponse(generate_frames(), media_type='multipart/x-mixed-replace; boundary=frame')
+    else:
+        cap = cv2.VideoCapture(0)
+        cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+        cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+        cap.set(cv2.CAP_PROP_FPS, 30)
 
-    def generate_frames():
-        while True:
-            ret, frame = cap.read()
-            if not ret:
-                break
+        if not cap.isOpened():
+            raise RuntimeError("Impossible d'accéder à la caméra")
 
-            # Optimisation de la détection des visages
-            frame_with_faces = detect_faces_with_name(frame, known_faces) if known_faces else frame
+        def generate_frames():
+            while True:
+                ret, frame = cap.read()
+                if not ret:
+                    break
+                frame_with_faces = detect_faces_with_name(frame, known_faces) if known_faces else frame
+                _, buffer = cv2.imencode('.jpg', frame_with_faces)
+                frame_bytes = buffer.tobytes()
+                yield (b'--frame\r\n'
+                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
 
-            # Encode l'image en JPEG
-            _, buffer = cv2.imencode('.jpg', frame_with_faces)
-            frame_bytes = buffer.tobytes()
-
-            # Envoie le contenu sous forme de flux multipart
-            yield (b'--frame\r\n'
-                   b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-
-    return StreamingResponse(generate_frames(), media_type='multipart/x-mixed-replace; boundary=frame')
-
+        return StreamingResponse(generate_frames(), media_type='multipart/x-mixed-replace; boundary=frame')
 
 async def add_new_face(supabase_client, user_id, frames):
     """
@@ -139,18 +170,28 @@ async def add_new_face(supabase_client, user_id, frames):
         face_encodings = face_recognition.face_encodings(rgb_frame, face_locations)
         if face_encodings:
             encodings.append(face_encodings[0])
-    print(f"[CAMERA] Detected face in {len(encodings)} frame for user {user_id}")
+    print(f"[CAMERA] Detected face in {len(encodings)} frame(s) for user {user_id}")
     success = await save_faces_to_supabase(supabase_client, user_id, encodings)
     return success
 
-
 def capture_frame():
-    cap = cv2.VideoCapture(0)
-    time.sleep(0.5)  # Attendre l'initialisation de la caméra pour éviter une image noire.
-    ret, frame = cap.read()
-    cap.release()
-    return frame 
-
+    """
+    Capture une frame unique en utilisant la méthode adaptée à la plateforme.
+    """
+    if IS_PI:
+        with PiCamera() as camera:
+            camera.resolution = (640, 480)
+            time.sleep(0.5)  # Temps de warm-up
+            rawCapture = PiRGBArray(camera, size=(640, 480))
+            camera.capture(rawCapture, format="bgr")
+            frame = rawCapture.array
+        return frame
+    else:
+        cap = cv2.VideoCapture(0)
+        time.sleep(0.5)
+        ret, frame = cap.read()
+        cap.release()
+        return frame
 
 def verify_face(supabase_client, user_id, tolerance=0.5):
     """
@@ -181,13 +222,12 @@ def verify_face(supabase_client, user_id, tolerance=0.5):
             return True, "Visage reconnu."
     return False, "Visage non reconnu, veuillez réessayer."
 
-
 def frame_to_data_uri(frame):
-    # Encode la frame en JPEG
+    """
+    Convertit une frame en URI de données pour l'image.
+    """
     success, buffer = cv2.imencode('.jpg', frame)
     if not success:
         return None
-    # Convertit en base64
     jpg_as_text = base64.b64encode(buffer).decode('utf-8')
-    # Retourne une URI pour l'image
     return f"data:image/jpeg;base64,{jpg_as_text}"
