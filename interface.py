@@ -182,18 +182,10 @@ def cancel_badge_task():
         badge_task.cancel()
         print("Tâche de lecture de badge annulée.")
 
-async def check_and_verify_async(staff_input, password_value):
+async def check_and_verify(staff_input, password_value):
     """
-    Vérifie les identifiants. Si le champ 'staff_input' est vide, attend qu'un badge soit lu.
+    Vérifie les identifiants et connecte l'user.
     """
-    # Si l'utilisateur n'a pas saisi de numéro, on laisse le badge task remplir le champ.
-    if staff_input.value.strip() == "":
-        ui.notify("Aucun numéro saisi, attente de badge...", color="primary")
-        # On attend quelques secondes pour laisser le temps au badge d'être lu
-        await asyncio.sleep(5)
-        if staff_input.value.strip() == "":
-            ui.notify("Aucun badge détecté.", color="red")
-            return
 
     # Annule la tâche de lecture dès qu'une valeur est présente (saisie manuelle ou badge lu)
     cancel_badge_task()
@@ -222,7 +214,7 @@ def login_page():
         password = ui.input(label="Mot de passe", placeholder="Entrez votre mot de passe", password=True).props("clearable").style("margin-bottom: 10px; width: 410px")
         with ui.row().style("margin-top: 20px; justify-content: center; gap: 10px;"):
             ui.button('Aide', color=None, on_click=lambda: ui.navigate.to('/help')).style("font-size: 14px; width: 200px; padding: 10px;")
-            ui.button("Connexion", on_click=lambda: asyncio.create_task(check_and_verify_async(staff_number, password.value))).style("font-size: 14px; width: 200px; padding: 10px; background-color: #007acc; color: white;")
+            ui.button("Connexion", on_click=lambda: check_and_verify(staff_number, password.value)).style("font-size: 14px; width: 200px; padding: 10px; background-color: #007acc; color: white;")
         ui.label("Made with <3 by GOATing team").style("font-size: 12px; color: #888888; margin-top: 10px;")
     # Lancer la lecture de badge en arrière-plan
     badge_task = asyncio.create_task(read_badge_in_background(staff_number))
@@ -348,44 +340,62 @@ def help_page():
             "width: 200px; padding: 10px;"
         )
 
-
-async def check_and_signup_async(staff_input, email_value, password_value, tag_input):
-    # Si le champ du staff number est vide, tente la lecture RFID
-    if staff_input.value.strip() == "":
-        ui.notify("Lecture du badge en cours...", color="primary")
-        staff_num = await asyncio.to_thread(get_staff_number_by_badge)
-        if staff_num:
-            staff_input.value = str(staff_num)
-            ui.notify(f"Badge lu : {staff_num}", color="green")
-        else:
-            ui.notify("Aucun badge détecté", color="red")
-            return
-    from utils.supabase_utils import signup as supabase_signup
-    user = supabase_signup(staff_input.value, email_value, password_value, tag_input.value if tag_input.value.strip() != "" else None)
-    if user:
-        app.storage.user['user'] = {"id": user.id, "email": user.email}
-        # Après inscription, on redirige vers la page de connexion ou directement vers la vérification de visage
-        ui.navigate.to('/login')
-    else:
-        ui.notify("Erreur lors de la création du compte", color="red")
-
 def logout():
     app.storage.user['user'] = None
     ui.navigate.to('/login')
 
+async def check_and_signup_async(staff_input, email_value, password_value, tag_input):
+    """
+    Vérifie si le numéro de compte est fourni.
+    Si le champ est vide, on attend quelques secondes la lecture du badge.
+    Ensuite, la tâche de lecture est annulée et l'inscription est lancée.
+    """
+    from utils.supabase_utils import supabase_signup
+    cancel_badge_task()
+    # Lancer l'inscription via Supabase
+    user = supabase_signup(
+        staff_input.value, email_value, password_value, tag_input.value if tag_input.value.strip() != "" else None
+    )
+    if user:
+        app.storage.user['user'] = {"id": user.id, "email": user.email}
+        ui.notify("Compte créé avec succès !", color="green")
+        ui.navigate.to('/login')
+    else:
+        ui.notify("Erreur lors de la création du compte", color="red")
+
 @ui.page('/signup')
 def signup_page():
+    global badge_task
     with ui.column().style("width: 100%; height: 100vh; justify-content: center; align-items: center;"):
         ui.label("Créer un compte").style("font-size: 28px; font-weight: bold; margin-bottom: 20px;")
+        # Première ligne : numéro de compte et badge côte à côte
         with ui.row().style("justify-content: center; gap: 10px; margin-bottom: 10px;"):
-            staff_number = ui.input(label="N° de compte UVSQ", placeholder="Votre numéro de compte sur votre carte UVSQ (ou laissez vide pour badge)").props("clearable").style("width: 300px")
-            tag_id = ui.input(label="Scannez votre badge UVSQ").props("disable").style("width: 300px")
+            staff_number = ui.input(
+                label="N° de compte UVSQ", 
+                placeholder="Votre numéro de compte ou laissez vide pour badge"
+            ).props("clearable").style("width: 300px")
+            tag_id = ui.input(
+                label="Scannez votre badge UVSQ"
+            ).props("disable").style("width: 300px")
+        # Dès que l'utilisateur saisit manuellement dans le champ du staff number, on annule la lecture de badge
+        staff_number.on("input", lambda: cancel_badge_task())
+        # Deuxième ligne : email et mot de passe côte à côte
         with ui.row().style("justify-content: center; gap: 10px; margin-bottom: 10px;"):
-            email = ui.input(label="Email", placeholder="Entrez votre email").props("clearable").style("width: 300px")
-            password = ui.input(label="Mot de passe", placeholder="Entrez votre mot de passe", password=True).props("clearable").style("width: 300px")
+            email = ui.input(
+                label="Email", 
+                placeholder="Entrez votre email"
+            ).props("clearable").style("width: 300px")
+            password = ui.input(
+                label="Mot de passe", 
+                placeholder="Entrez votre mot de passe", 
+                password=True
+            ).props("clearable").style("width: 300px")
+        # Boutons d'action
         with ui.row().style("margin-top: 20px; justify-content: center; gap: 10px;"):
-            ui.button("Créer un compte", on_click=lambda: asyncio.create_task(check_and_signup_async(staff_number, email.value, password.value, tag_id))).style("font-size: 14px; width: 200px; padding: 10px; background-color: #007acc; color: white;")
+            ui.button("Créer un compte", on_click=lambda: check_and_signup_async(staff_number, email.value, password.value, tag_id)).style("font-size: 14px; width: 200px; padding: 10px; background-color: #007acc; color: white;")
             ui.button("Retour", on_click=lambda: ui.navigate.to('/login')).style("font-size: 14px; width: 200px; padding: 10px;")
+    # Lancer la lecture de badge en arrière-plan si le champ est vide
+    badge_task = asyncio.create_task(read_badge_in_background(staff_number))
 
 
 
