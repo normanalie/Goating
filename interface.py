@@ -363,7 +363,7 @@ def check_and_signup(staff_input, email_value, password_value, tag_input):
     else:
         ui.notify("Erreur lors de la création du compte", color="red")
 
-async def read_badge_nmber(tag_number):
+async def read_badge_number(tag_number):
     """
     Tâche qui lit en boucle un badge RFID jusqu'à ce qu'un badge soit détecté.
     Lorsque cela se produit, le champ 'tag_number' est rempli et la tâche s'arrête. tag_id correspond a l'id unique du badge
@@ -411,7 +411,7 @@ def signup_page():
             ui.button("Créer un compte", on_click=lambda: check_and_signup(staff_number, email.value, password.value, tag_id)).style("font-size: 14px; width: 200px; padding: 10px; background-color: #007acc; color: white;")
             ui.button("Retour", on_click=lambda: ui.navigate.to('/login')).style("font-size: 14px; width: 200px; padding: 10px;")
     # Lancer la lecture de badge en arrière-plan si le champ est vide
-    badge_task = asyncio.create_task(read_badge_in_background(tag_id))
+    badge_task = asyncio.create_task(read_badge_number(tag_id))
 
 
 
