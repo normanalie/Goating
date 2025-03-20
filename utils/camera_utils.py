@@ -21,7 +21,6 @@ def is_raspberry_pi():
 # Flag indiquant si l'on est sur un Raspberry Pi
 IS_PI = is_raspberry_pi()
 
-# Si on est sur un Pi, on importe picamera2
 if IS_PI:
     try:
         from picamera2 import Picamera2
@@ -31,12 +30,23 @@ if IS_PI:
 # Charger le classificateur Haar pour la détection des visages
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
 
+# --- Fonction utilitaire pour obtenir une instance de Picamera2 ---
+def get_picamera2_instance(video=True):
+    """
+    Crée et configure une nouvelle instance de Picamera2.
+    Si video est True, on utilise une configuration pour la vidéo,
+    sinon pour la capture still.
+    """
+    picam2 = Picamera2()
+    if video:
+        config = picam2.create_video_configuration(main={"size": (640, 480)})
+    else:
+        config = picam2.create_still_configuration(main={"size": (640, 480)})
+    picam2.configure(config)
+    return picam2
+
+# --- Fonctions liées à Supabase (inchangées) ---
 async def save_faces_to_supabase(supabase_client, user_id, encodings):
-    """
-    Enregistre plusieurs encodages d'un même visage dans la table "faces".
-    Chaque encodage est inséré dans une ligne distincte en utilisant asyncio.to_thread
-    pour ne pas bloquer l'event loop.
-    """
     async def insert_encoding(encoding):
         encoding_json = np.array(encoding).tolist()
         data = {
@@ -55,11 +65,6 @@ async def save_faces_to_supabase(supabase_client, user_id, encodings):
     return all(results)
 
 def load_face_from_supabase(supabase_client, user_id):
-    """
-    Charge tous les encodages de la table "faces" pour un utilisateur donné,
-    convertit chaque encoding (liste de floats) en tableau numpy et retourne un dictionnaire:
-      { "name": user_id, "encoding": [array1, array2, ...] }
-    """
     try:
         res = supabase_client.table("faces").select("encoding").eq("user_id", user_id).execute()
         encodings = []
@@ -72,17 +77,16 @@ def load_face_from_supabase(supabase_client, user_id):
         print('[CAMERA] Load face encodings from Supabase error:', e)
         return None
 
+# --- Fonctions de gestion de la caméra ---
 def check_camera():
     """Vérifie si la caméra est accessible en fonction de la plateforme."""
     print("[CAMERA] Checking...")
     if IS_PI:
         try:
-            picam2 = Picamera2()
-            # Configure pour une capture vidéo (taille 640x480)
-            config = picam2.create_video_configuration(main={"size": (640, 480)})
-            picam2.configure(config)
+            picam2 = get_picamera2_instance(video=True)
             picam2.start()
             picam2.stop()
+            picam2.close()
             return True
         except Exception as e:
             print("[CAMERA] Erreur d'accès à la caméra sur Raspberry Pi:", e)
@@ -98,7 +102,6 @@ def check_camera():
 def detect_faces_with_name(frame: np.ndarray, stored_data) -> np.ndarray:
     """
     Détecte les visages dans l'image et dessine une boîte si le visage correspond aux encodages stockés.
-    stored_data est un dictionnaire {"name": user_id, "encoding": [array1, array2, ...]}.
     """
     stored_encodings = stored_data["encoding"]
     # Réduction de la résolution pour optimiser la détection
@@ -120,42 +123,46 @@ def detect_faces_with_name(frame: np.ndarray, stored_data) -> np.ndarray:
 
 def video_stream(known_faces=None):
     """
-    Génère un flux vidéo continu avec détection des visages en fonction de la plateforme.
+    Génère un flux vidéo continu avec détection des visages.
+    Pour Raspberry Pi, on utilise picamera2 ; sinon, cv2.VideoCapture.
     """
     if IS_PI:
-        # Utilisation de picamera2
-        picam2 = Picamera2()
-        config = picam2.create_video_configuration(main={"size": (640, 480)})
-        picam2.configure(config)
+        # Instanciation locale de la caméra pour la vidéo
+        picam2 = get_picamera2_instance(video=True)
         picam2.start()
         time.sleep(0.1)  # Stabilisation de la caméra
 
         def generate_frames():
-            while True:
-                frame = picam2.capture_array()
-                frame_with_faces = detect_faces_with_name(frame, known_faces) if known_faces else frame
-                ret, buffer = cv2.imencode('.jpg', frame_with_faces)
-                frame_bytes = buffer.tobytes()
-                yield (b'--frame\r\n'
-                       b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+            try:
+                while True:
+                    frame = picam2.capture_array()
+                    # Conversion de RGB (picamera2) vers BGR (OpenCV)
+                    frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+                    if known_faces:
+                        frame = detect_faces_with_name(frame, known_faces)
+                    ret, buffer = cv2.imencode('.jpg', frame)
+                    frame_bytes = buffer.tobytes()
+                    yield (b'--frame\r\n'
+                           b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+            finally:
+                picam2.stop()
+                picam2.close()
         return StreamingResponse(generate_frames(), media_type='multipart/x-mixed-replace; boundary=frame')
     else:
-        # Utilisation de cv2.VideoCapture
         cap = cv2.VideoCapture(0)
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
         cap.set(cv2.CAP_PROP_FPS, 30)
-
         if not cap.isOpened():
             raise RuntimeError("Impossible d'accéder à la caméra")
-
         def generate_frames():
             while True:
                 ret, frame = cap.read()
                 if not ret:
                     break
-                frame_with_faces = detect_faces_with_name(frame, known_faces) if known_faces else frame
-                _, buffer = cv2.imencode('.jpg', frame_with_faces)
+                if known_faces:
+                    frame = detect_faces_with_name(frame, known_faces)
+                _, buffer = cv2.imencode('.jpg', frame)
                 frame_bytes = buffer.tobytes()
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
@@ -181,13 +188,13 @@ def capture_frame():
     Capture une frame unique en utilisant la méthode adaptée à la plateforme.
     """
     if IS_PI:
-        picam2 = Picamera2()
-        config = picam2.create_still_configuration(main={"size": (640, 480)})
-        picam2.configure(config)
+        picam2 = get_picamera2_instance(video=False)
         picam2.start()
         time.sleep(0.5)  # Temps de warm-up
         frame = picam2.capture_array()
+        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
         picam2.stop()
+        picam2.close()
         return frame
     else:
         cap = cv2.VideoCapture(0)
@@ -199,7 +206,6 @@ def capture_frame():
 def verify_face(supabase_client, user_id, tolerance=0.5):
     """
     Capture une frame et compare les encodages détectés avec ceux stockés pour l'utilisateur.
-    Retourne (True, message) si le visage est reconnu, sinon (False, message).
     """
     stored_data = load_face_from_supabase(supabase_client, user_id)
     if not stored_data or not stored_data["encoding"]:
