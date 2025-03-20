@@ -2,7 +2,7 @@ from nicegui import ui, app
 import time
 from utils.camera_utils import load_face_from_supabase, capture_frame, add_new_face, verify_face, frame_to_data_uri
 from utils.supabase_utils import login as supabase_login, check_login, supabase as supabase_client, get_orders, get_order_items, toggle_order_item, get_box, get_order
-from utils.rfid_utils import get_staff_number_by_badge
+from utils.rfid_utils import get_staff_number_by_badge, read_badge
 import base64
 import asyncio 
 
@@ -344,7 +344,7 @@ def logout():
     app.storage.user['user'] = None
     ui.navigate.to('/login')
 
-async def check_and_signup_async(staff_input, email_value, password_value, tag_input):
+def check_and_signup(staff_input, email_value, password_value, tag_input):
     """
     Vérifie si le numéro de compte est fourni.
     Si le champ est vide, on attend quelques secondes la lecture du badge.
@@ -362,6 +362,22 @@ async def check_and_signup_async(staff_input, email_value, password_value, tag_i
         ui.navigate.to('/login')
     else:
         ui.notify("Erreur lors de la création du compte", color="red")
+
+async def read_badge_nmber(tag_number):
+    """
+    Tâche qui lit en boucle un badge RFID jusqu'à ce qu'un badge soit détecté.
+    Lorsque cela se produit, le champ 'tag_number' est rempli et la tâche s'arrête. tag_id correspond a l'id unique du badge
+    """
+    try:
+        while True:
+            badge = await asyncio.to_thread(read_badge)
+            if badge:
+                tag_number.value = str(badge)
+                ui.notify(f"Badge lu : {badge}", color="green")
+                break
+            await asyncio.sleep(1)
+    except asyncio.CancelledError:
+        print("Lecture de badge annulée.")
 
 @ui.page('/signup')
 def signup_page():
@@ -392,10 +408,10 @@ def signup_page():
             ).props("clearable").style("width: 300px")
         # Boutons d'action
         with ui.row().style("margin-top: 20px; justify-content: center; gap: 10px;"):
-            ui.button("Créer un compte", on_click=lambda: check_and_signup_async(staff_number, email.value, password.value, tag_id)).style("font-size: 14px; width: 200px; padding: 10px; background-color: #007acc; color: white;")
+            ui.button("Créer un compte", on_click=lambda: check_and_signup(staff_number, email.value, password.value, tag_id)).style("font-size: 14px; width: 200px; padding: 10px; background-color: #007acc; color: white;")
             ui.button("Retour", on_click=lambda: ui.navigate.to('/login')).style("font-size: 14px; width: 200px; padding: 10px;")
     # Lancer la lecture de badge en arrière-plan si le champ est vide
-    badge_task = asyncio.create_task(read_badge_in_background(staff_number))
+    badge_task = asyncio.create_task(read_badge_in_background(tag_id))
 
 
 
