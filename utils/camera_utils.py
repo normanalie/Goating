@@ -21,13 +21,12 @@ def is_raspberry_pi():
 # Flag indiquant si l'on est sur un Raspberry Pi
 IS_PI = is_raspberry_pi()
 
-# Si on est sur un Pi, on importe picamera
+# Si on est sur un Pi, on importe picamera2
 if IS_PI:
     try:
-        from picamera import PiCamera
-        from picamera.array import PiRGBArray
+        from picamera2 import Picamera2
     except ImportError as e:
-        raise ImportError("Le module picamera est requis sur Raspberry Pi. Installez-le avec 'pip install picamera'") from e
+        raise ImportError("Le module picamera2 est requis sur Raspberry Pi. Installez-le avec 'pip install picamera2'") from e
 
 # Charger le classificateur Haar pour la détection des visages
 face_cascade = cv2.CascadeClassifier(cv2.data.haarcascades + 'haarcascade_frontalface_default.xml')
@@ -78,9 +77,12 @@ def check_camera():
     print("[CAMERA] Checking...")
     if IS_PI:
         try:
-            with PiCamera() as camera:
-                camera.resolution = (640, 480)
-                time.sleep(0.1)  # Temps de warm-up
+            picam2 = Picamera2()
+            # Configure pour une capture vidéo (taille 640x480)
+            config = picam2.create_video_configuration(main={"size": (640, 480)})
+            picam2.configure(config)
+            picam2.start()
+            picam2.stop()
             return True
         except Exception as e:
             print("[CAMERA] Erreur d'accès à la caméra sur Raspberry Pi:", e)
@@ -99,6 +101,7 @@ def detect_faces_with_name(frame: np.ndarray, stored_data) -> np.ndarray:
     stored_data est un dictionnaire {"name": user_id, "encoding": [array1, array2, ...]}.
     """
     stored_encodings = stored_data["encoding"]
+    # Réduction de la résolution pour optimiser la détection
     small_frame = cv2.resize(frame, (0, 0), fx=0.5, fy=0.5)
     rgb_frame = cv2.cvtColor(small_frame, cv2.COLOR_BGR2RGB)
 
@@ -120,24 +123,24 @@ def video_stream(known_faces=None):
     Génère un flux vidéo continu avec détection des visages en fonction de la plateforme.
     """
     if IS_PI:
-        camera = PiCamera()
-        camera.resolution = (640, 480)
-        camera.framerate = 30
-        rawCapture = PiRGBArray(camera, size=(640, 480))
+        # Utilisation de picamera2
+        picam2 = Picamera2()
+        config = picam2.create_video_configuration(main={"size": (640, 480)})
+        picam2.configure(config)
+        picam2.start()
         time.sleep(0.1)  # Stabilisation de la caméra
 
         def generate_frames():
-            for frame in camera.capture_continuous(rawCapture, format="bgr", use_video_port=True):
-                image = frame.array
-                frame_with_faces = detect_faces_with_name(image, known_faces) if known_faces else image
+            while True:
+                frame = picam2.capture_array()
+                frame_with_faces = detect_faces_with_name(frame, known_faces) if known_faces else frame
                 ret, buffer = cv2.imencode('.jpg', frame_with_faces)
                 frame_bytes = buffer.tobytes()
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-                rawCapture.truncate(0)
-
         return StreamingResponse(generate_frames(), media_type='multipart/x-mixed-replace; boundary=frame')
     else:
+        # Utilisation de cv2.VideoCapture
         cap = cv2.VideoCapture(0)
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
@@ -156,7 +159,6 @@ def video_stream(known_faces=None):
                 frame_bytes = buffer.tobytes()
                 yield (b'--frame\r\n'
                        b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
-
         return StreamingResponse(generate_frames(), media_type='multipart/x-mixed-replace; boundary=frame')
 
 async def add_new_face(supabase_client, user_id, frames):
@@ -179,12 +181,13 @@ def capture_frame():
     Capture une frame unique en utilisant la méthode adaptée à la plateforme.
     """
     if IS_PI:
-        with PiCamera() as camera:
-            camera.resolution = (640, 480)
-            time.sleep(0.5)  # Temps de warm-up
-            rawCapture = PiRGBArray(camera, size=(640, 480))
-            camera.capture(rawCapture, format="bgr")
-            frame = rawCapture.array
+        picam2 = Picamera2()
+        config = picam2.create_still_configuration(main={"size": (640, 480)})
+        picam2.configure(config)
+        picam2.start()
+        time.sleep(0.5)  # Temps de warm-up
+        frame = picam2.capture_array()
+        picam2.stop()
         return frame
     else:
         cap = cv2.VideoCapture(0)
