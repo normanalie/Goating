@@ -144,11 +144,15 @@ def video_stream(known_faces=None):
                     frame_bytes = buffer.tobytes()
                     yield (b'--frame\r\n'
                            b'Content-Type: image/jpeg\r\n\r\n' + frame_bytes + b'\r\n')
+            except Exception as e:
+                print("Erreur lors de la génération des frames :", e)
             finally:
+                # Toujours arrêter et fermer la caméra
                 picam2.stop()
                 picam2.close()
         return StreamingResponse(generate_frames(), media_type='multipart/x-mixed-replace; boundary=frame')
     else:
+        # Utilisation de cv2.VideoCapture pour un ordinateur
         cap = cv2.VideoCapture(0)
         cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
         cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
@@ -189,20 +193,21 @@ def capture_frame():
     """
     if IS_PI:
         picam2 = get_picamera2_instance(video=False)
-        picam2.start()
-        time.sleep(0.5)  # Temps de warm-up
-        frame = picam2.capture_array()
-        frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
-        picam2.stop()
-        picam2.close()
-        return frame
+        try:
+            picam2.start()
+            time.sleep(0.5)  # Temps de warm-up
+            frame = picam2.capture_array()
+            frame = cv2.cvtColor(frame, cv2.COLOR_RGB2BGR)
+            return frame
+        finally:
+            picam2.stop()
+            picam2.close()
     else:
         cap = cv2.VideoCapture(0)
         time.sleep(0.5)
         ret, frame = cap.read()
         cap.release()
         return frame
-
 def verify_face(supabase_client, user_id, tolerance=0.5):
     """
     Capture une frame et compare les encodages détectés avec ceux stockés pour l'utilisateur.
