@@ -200,7 +200,7 @@ async def check_and_verify_async(staff_input, password_value):
     user, err = supabase_login(staff_input.value, password_value)
     if user:
         app.storage.user['user'] = {"id": user.id, "email": user.email}
-        ui.navigate.to('/face_verification')
+        ui.timer(0, lambda: ui.navigate.to('/face_verification'), once=True)
     elif err:
         app.storage.user['user'] = None
         ui.notify(err, color="red")

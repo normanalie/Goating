@@ -36,7 +36,7 @@ def read_badge():
 
     continue_reading = True
 
-    MIFAREReader = MFRC522.MFRC522()
+    MIFAREReader = MFRC522()
     print("Attente d'un badge RFID... (Appuyez sur Ctrl-C pour arrêter)")
     while continue_reading:
         # Scanner les cartes
