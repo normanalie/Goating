@@ -1,12 +1,11 @@
 import platform
-import signal
 from utils.supabase_utils import supabase
 
 # Vérifier si on tourne sur un Raspberry Pi
 # Les Raspberry Pi utilisent généralement 'armv7l' ou 'aarch64'
 if platform.machine() in ('armv7l', 'aarch64'):
     try:
-        import MFRC522
+        from .MFRC522 import MFRC522
     except ImportError:
         print("La bibliothèque MFRC522 n'est pas disponible.")
         MFRC522 = None
@@ -36,14 +35,6 @@ def read_badge():
         return None
 
     continue_reading = True
-
-    def end_read(sig, frame):
-        nonlocal continue_reading
-        print("Ctrl+C capturé, arrêt de la lecture.")
-        continue_reading = False
-
-    # Intercepter Ctrl-C pour quitter proprement
-    signal.signal(signal.SIGINT, end_read)
 
     MIFAREReader = MFRC522.MFRC522()
     print("Attente d'un badge RFID... (Appuyez sur Ctrl-C pour arrêter)")
