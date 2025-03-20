@@ -154,16 +154,49 @@ def add_face(name_input):
 
 
 
+# Variable globale pour stocker la tâche de lecture de badge
+badge_task = None
+
+async def read_badge_in_background(staff_input):
+    """
+    Tâche qui lit en boucle un badge RFID jusqu'à ce qu'un badge soit détecté.
+    Lorsque cela se produit, le champ 'staff_input' est rempli et la tâche s'arrête.
+    """
+    try:
+        while True:
+            badge = await asyncio.to_thread(get_staff_number_by_badge)
+            if badge:
+                staff_input.value = str(badge)
+                ui.notify(f"Badge lu : {badge}", color="green")
+                break
+            await asyncio.sleep(1)
+    except asyncio.CancelledError:
+        print("Lecture de badge annulée.")
+
+def cancel_badge_task():
+    """
+    Annule la tâche de lecture de badge si elle est en cours.
+    """
+    global badge_task
+    if badge_task and not badge_task.done():
+        badge_task.cancel()
+        print("Tâche de lecture de badge annulée.")
+
 async def check_and_verify_async(staff_input, password_value):
-    # Si le champ est vide, lance la lecture RFID
+    """
+    Vérifie les identifiants. Si le champ 'staff_input' est vide, attend qu'un badge soit lu.
+    """
+    # Si l'utilisateur n'a pas saisi de numéro, on laisse le badge task remplir le champ.
     if staff_input.value.strip() == "":
-        ui.notify("Lecture du badge en cours...", color="primary")
-        staff_num = await asyncio.to_thread(get_staff_number_by_badge)
-        if staff_num:
-            staff_input.value = str(staff_num)
-            ui.notify(f"Badge lu : {staff_num}", color="green")
-            ui.notify("Aucun badge détecté", color="red")
+        ui.notify("Aucun numéro saisi, attente de badge...", color="primary")
+        # On attend quelques secondes pour laisser le temps au badge d'être lu
+        await asyncio.sleep(5)
+        if staff_input.value.strip() == "":
+            ui.notify("Aucun badge détecté.", color="red")
             return
+
+    # Annule la tâche de lecture dès qu'une valeur est présente (saisie manuelle ou badge lu)
+    cancel_badge_task()
     user, err = supabase_login(staff_input.value, password_value)
     if user:
         app.storage.user['user'] = {"id": user.id, "email": user.email}
@@ -177,17 +210,22 @@ async def check_and_verify_async(staff_input, password_value):
 
 @ui.page('/login')
 def login_page():
+    global badge_task
     with ui.column().style("width: 100%; height: 100vh; justify-content: center; align-items: center;"):
         with ui.row().style("align-items: center; margin-bottom: 10px;"):
             ui.icon("precision_manufacturing").style("font-size: 28px; color: #007acc;")
             ui.label("STOREBOT").style("font-size: 28px; font-weight: bold; color: #007acc; margin-left: 5px;")
-        staff_number = ui.input(label="N° de compte", placeholder="Entrez votre n° étudiant (ou laissez vide pour badge)").props("clearable").style("margin-bottom: 10px; width: 410px")
+        # Champ du numéro de compte, avec placeholder indiquant que le badge peut être lu
+        staff_number = ui.input(label="N° de compte", placeholder="Entrez votre n° étudiant ou laissez vide pour badge").props("clearable").style("margin-bottom: 10px; width: 410px")
+        # Dès que l'utilisateur saisit dans ce champ, on annule la lecture du badge
+        staff_number.on("input", lambda: cancel_badge_task())
         password = ui.input(label="Mot de passe", placeholder="Entrez votre mot de passe", password=True).props("clearable").style("margin-bottom: 10px; width: 410px")
         with ui.row().style("margin-top: 20px; justify-content: center; gap: 10px;"):
             ui.button('Aide', color=None, on_click=lambda: ui.navigate.to('/help')).style("font-size: 14px; width: 200px; padding: 10px;")
-            # On utilise asyncio.create_task pour lancer la fonction asynchrone
             ui.button("Connexion", on_click=lambda: asyncio.create_task(check_and_verify_async(staff_number, password.value))).style("font-size: 14px; width: 200px; padding: 10px; background-color: #007acc; color: white;")
         ui.label("Made with <3 by GOATing team").style("font-size: 12px; color: #888888; margin-top: 10px;")
+    # Lancer la lecture de badge en arrière-plan
+    badge_task = asyncio.create_task(read_badge_in_background(staff_number))
 
 
 @ui.page('/face_verification')
