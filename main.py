@@ -10,4 +10,4 @@ async def video_stream_route():
 
 
 # Lancer l'application
-ui.run(storage_secret="secret")
+ui.run(storage_secret="secret", title="Storebot", show=False)
