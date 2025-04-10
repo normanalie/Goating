@@ -138,7 +138,7 @@ onMounted(async () =>{
               </template>
 
               <template #details>
-                <h3 class="text-sm font-medium mb-[-1%]">Nombre d'articles: {{ order.order_items.length }}</h3>
+                <h3 class="text-sm font-medium mb-[0.5%] mt-[-4%]">Nombre d'articles: {{ order.order_items.length }}</h3>
                 <h3 class="text-sm font-medium mt-[-1%]">Commande passée le {{ order.created_at.split("T")[0].split("-").reverse().join("/") }} à {{ order.created_at.split("T")[1].split(/[.+]/)[0] }}</h3> <!-- OU  order.created_at.substring(0, order.created_at.lastIndexOf("T")) -->
               </template>
 

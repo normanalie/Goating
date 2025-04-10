@@ -57,10 +57,11 @@ async function getUserSession() {
 }
 
 function addItemToCart() {
-  //Ajouter la logique
+  if(sliderValue.value == 0) {
+    return;
+  }
   const newItem = { user_id: userId.value, item_id: itemRef.value, name: itemName.value, image: mainImgSrc.value, quantity: sliderValue.value, status: 'reserved' }
   orderStore.addItemToOrder(newItem)
-  //orderStore.clearOrders()
   console.log("Bouton 'Ajouter au panier' appuyé.")
 }
 

@@ -29,7 +29,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="flex flex-row items-center gap-4">
+  <div class="flex flex-row items-center gap-4 w-[80%]">
     <input
       type="range"
       min="0"

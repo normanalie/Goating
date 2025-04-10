@@ -9,13 +9,12 @@ const router = useRouter();
 </script>
 
 <template>
-  <div>
-    <div class="flex flex-row">
-      <SideBar></SideBar>
-      <div class="flex-1 w-full">
+  <div class="h-screen flex flex-row">
+    <SideBar class="h-full" />
+    <div class="flex-1 w-full overflow-y-auto">
       <h1 class="text-[3em] text-center">STOREBOT</h1>
       <router-view />
     </div>
-    </div>
   </div>
 </template>
+

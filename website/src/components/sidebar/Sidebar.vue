@@ -1,4 +1,4 @@
-<template class="bg-[#2F27CE] h-screen">
+<template class="bg-[#2F27CE] h-full">
   <div class="sidebar-container">
     <div class="sidebar bg-[#2F27CE] text-white min-w-max max-h-full p-[0.5%] font-poppins sm:block hidden">
       <span

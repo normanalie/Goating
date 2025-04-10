@@ -64,6 +64,7 @@ async function loginUserWithNumber(staffNumber, password) {
 }
 
 const loginUser = () => {
+
   if (/^\d+$/.test(userInput.value)) {
     loginUserWithNumber(userInput.value, pwdInput.value)
   } else {
@@ -86,7 +87,12 @@ onMounted(async () => {})
       <div class="flex flex-col gap-[5vh]">
         <div>
           <label class="block mb-1 ml-1">Identifiant</label>
-          <InputField v-model="userInput" placeholder="e-mail ou n° étudiant" class="w-full" />
+          <InputField
+          v-model="userInput"
+          placeholder="e-mail ou n° étudiant"
+          class="w-full"
+          @keydown.enter="loginUser"
+          />
         </div>
 
         <div>
@@ -96,6 +102,7 @@ onMounted(async () => {})
             placeholder="mot de passe"
             type="password"
             class="w-full"
+            @keydown.enter="loginUser"
           />
         </div>
 
