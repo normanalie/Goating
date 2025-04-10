@@ -61,10 +61,15 @@ class HX711Driver:
     def _setup(self):
         """Initialisation du capteur HX711"""
         print("Initialisation HX711...")
-        self.hx.tare()
+        # Réinitialiser le capteur
+        self.hx.reset()
+        # Attendre que le capteur soit prêt
         time.sleep(0.5)
-        self.offset_tare = self.hx.get_units(10)
-        print(f"Offset tare : {self.offset_tare}")
+        # Lire la valeur brute initiale pour l'offset
+        raw_data = self.hx.get_raw_data(10)
+        if raw_data:
+            self.offset_tare = sum(raw_data) / len(raw_data)
+            print(f"Offset tare : {self.offset_tare}")
     
     def kalman_update(self, measurement):
         """Mise à jour du filtre de Kalman"""
@@ -87,24 +92,31 @@ class HX711Driver:
         print("Pose un objet de poids connu sur la balance...")
         time.sleep(3)  # attendre la stabilisation
         
-        raw_value = self.hx.get_units(10)
-        print(f"Valeur brute mesurée : {raw_value}")
-        
-        self.calibration_factor = (raw_value - self.offset_tare) / known_weight
-        print(f"Facteur de calibration calculé : {self.calibration_factor:.4f}")
+        raw_data = self.hx.get_raw_data(10)
+        if raw_data:
+            raw_value = sum(raw_data) / len(raw_data)
+            print(f"Valeur brute mesurée : {raw_value}")
+            
+            self.calibration_factor = (raw_value - self.offset_tare) / known_weight
+            print(f"Facteur de calibration calculé : {self.calibration_factor:.4f}")
     
     def get_weight(self, samples=5):
         """Obtention du poids filtré en grammes"""
-        raw_weight = (self.hx.get_units(samples) - self.offset_tare) / self.calibration_factor
-        filtered_weight = self.kalman_update(raw_weight)
-        return filtered_weight / 1000.0  # conversion en grammes
+        raw_data = self.hx.get_raw_data(samples)
+        if raw_data:
+            raw_weight = (sum(raw_data) / len(raw_data) - self.offset_tare) / self.calibration_factor
+            filtered_weight = self.kalman_update(raw_weight)
+            return filtered_weight / 1000.0  # conversion en grammes
+        return 0.0
     
     def tare(self):
         """Remise à zéro de la balance"""
-        self.hx.tare()
+        self.hx.reset()
         time.sleep(0.5)
-        self.offset_tare = self.hx.get_units(10)
-        print(f"Nouvel offset tare : {self.offset_tare}")
+        raw_data = self.hx.get_raw_data(10)
+        if raw_data:
+            self.offset_tare = sum(raw_data) / len(raw_data)
+            print(f"Nouvel offset tare : {self.offset_tare}")
 
 # Exemple d'utilisation
 if __name__ == "__main__":
