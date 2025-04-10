@@ -12,12 +12,12 @@ scale = None
 if HX711_AVAILABLE:
     try:
         scale = HX711Driver()
-        print("✅ Balance HX711 initialisée")
+        print("Balance HX711 initialisée")
     except Exception as e:
-        print(f"❌ Erreur lors de l'initialisation de la balance: {e}")
+        print(f"Erreur lors de l'initialisation de la balance: {e}")
 else:
     scale = HX711Driver()  # Utilise le mock en développement
-    print("⚠️ Mode développement: utilisation du mock HX711")
+    print("Mode développement: utilisation du mock HX711")
 
 DISABLE_LOGIN = True  # WARNING NOT TO BE USED IN PRODUCTION
 
@@ -235,7 +235,7 @@ def login_page():
 
 @ui.page('/face_verification')
 async def face_verification_page():
-    if not is_user_connected():
+    if not is_user_connected:
         ui.navigate.to('/login')
         return
     
@@ -248,11 +248,6 @@ async def face_verification_page():
     stored_encodings = load_face_from_supabase(supabase_client, user["id"])
 
     with ui.column().style("width: 100%; height: 100vh; justify-content: center; align-items: center;"):
-        # Affichage du flux vidéo
-        with ui.row().style("justify-content: center; width: 100%;"):
-            ui.html('<iframe src="/video_stream" style="width: 640px; height: 360px;"></iframe>').style(
-                "margin-bottom: 5px;"
-            )
         ui.label("Un petit instant, nous vérifions votre identité...").style("font-size: 18px; margin-bottom: 20px;")
     await ui.context.client.connected()
     if stored_encodings["encoding"] == []:

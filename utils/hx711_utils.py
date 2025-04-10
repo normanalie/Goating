@@ -17,7 +17,7 @@ else:
 class MockHX711:
     """Classe mock pour l'environnement de développement"""
     def __init__(self, *args, **kwargs):
-        print("⚠️ Utilisation du mock HX711 (environnement de développement)")
+        print("Utilisation du mock HX711 (environnement de développement)")
         self.calibration_factor = 1.03
         self.offset_tare = 0
         self.estimation = 0
@@ -41,7 +41,7 @@ class MockHX711:
         pass
 
 class HX711Driver:
-    def __init__(self, dout_pin=32, pd_sck_pin=31):
+    def __init__(self, dout_pin=12, pd_sck_pin=11):
         if HX711_AVAILABLE:
             self.hx = HX711(dout_pin, pd_sck_pin)
         else:
@@ -60,11 +60,11 @@ class HX711Driver:
     
     def _setup(self):
         """Initialisation du capteur HX711"""
-        print("🔧 Initialisation HX711...")
+        print("Initialisation HX711...")
         self.hx.tare()
         time.sleep(0.5)
         self.offset_tare = self.hx.get_units(10)
-        print(f"📊 Offset tare : {self.offset_tare}")
+        print(f"Offset tare : {self.offset_tare}")
     
     def kalman_update(self, measurement):
         """Mise à jour du filtre de Kalman"""
@@ -84,14 +84,14 @@ class HX711Driver:
     
     def calibrate(self, known_weight):
         """Calibration avec un poids connu"""
-        print("⚖️ Pose un objet de poids connu sur la balance...")
+        print("Pose un objet de poids connu sur la balance...")
         time.sleep(3)  # attendre la stabilisation
         
         raw_value = self.hx.get_units(10)
-        print(f"📈 Valeur brute mesurée : {raw_value}")
+        print(f"Valeur brute mesurée : {raw_value}")
         
         self.calibration_factor = (raw_value - self.offset_tare) / known_weight
-        print(f"✅ Facteur de calibration calculé : {self.calibration_factor:.4f}")
+        print(f"Facteur de calibration calculé : {self.calibration_factor:.4f}")
     
     def get_weight(self, samples=5):
         """Obtention du poids filtré en grammes"""
@@ -104,7 +104,7 @@ class HX711Driver:
         self.hx.tare()
         time.sleep(0.5)
         self.offset_tare = self.hx.get_units(10)
-        print(f"📊 Nouvel offset tare : {self.offset_tare}")
+        print(f"Nouvel offset tare : {self.offset_tare}")
 
 # Exemple d'utilisation
 if __name__ == "__main__":
@@ -113,7 +113,7 @@ if __name__ == "__main__":
     # Calibration (à décommenter si nécessaire)
     # scale.calibrate(500)  # 500g de poids connu
     
-    print("⏺️ Acquisition des données en cours...")
+    print("Acquisition des données en cours...")
     print("time_ms,poids_g")
     
     try:
