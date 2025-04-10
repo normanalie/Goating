@@ -41,7 +41,7 @@ class MockHX711:
         pass
 
 class HX711Driver:
-    def __init__(self, dout_pin=17, pd_sck_pin=27):
+    def __init__(self, dout_pin=32, pd_sck_pin=31):
         if HX711_AVAILABLE:
             self.hx = HX711(dout_pin, pd_sck_pin)
         else:
@@ -61,10 +61,6 @@ class HX711Driver:
     def _setup(self):
         """Initialisation du capteur HX711"""
         print("🔧 Initialisation HX711...")
-        while not self.hx.is_ready():
-            print("⏳ HX711 non prêt...")
-            time.sleep(0.5)
-        
         self.hx.tare()
         time.sleep(0.5)
         self.offset_tare = self.hx.get_units(10)
