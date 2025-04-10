@@ -41,7 +41,7 @@ class MockHX711:
         pass
 
 class HX711Driver:
-    def __init__(self, dout_pin=12, pd_sck_pin=11):
+    def __init__(self, dout_pin=5, pd_sck_pin=6):
         if HX711_AVAILABLE:
             self.hx = HX711(dout_pin, pd_sck_pin)
         else:
