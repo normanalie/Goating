@@ -3,8 +3,21 @@ import time
 from utils.camera_utils import load_face_from_supabase, capture_frame, add_new_face, verify_face, frame_to_data_uri
 from utils.supabase_utils import login as supabase_login, check_login, supabase as supabase_client, get_orders, get_order_items, toggle_order_item, get_box, get_order
 from utils.rfid_utils import get_staff_number_by_badge, read_badge
+from utils.hx711_utils import HX711Driver, HX711_AVAILABLE
 import base64
 import asyncio 
+
+# Initialisation de la balance
+scale = None
+if HX711_AVAILABLE:
+    try:
+        scale = HX711Driver()
+        print("✅ Balance HX711 initialisée")
+    except Exception as e:
+        print(f"❌ Erreur lors de l'initialisation de la balance: {e}")
+else:
+    scale = HX711Driver()  # Utilise le mock en développement
+    print("⚠️ Mode développement: utilisation du mock HX711")
 
 DISABLE_LOGIN = True  # WARNING NOT TO BE USED IN PRODUCTION
 
@@ -222,7 +235,7 @@ def login_page():
 
 @ui.page('/face_verification')
 async def face_verification_page():
-    if not is_user_connected:
+    if not is_user_connected():
         ui.navigate.to('/login')
         return
     
@@ -235,6 +248,11 @@ async def face_verification_page():
     stored_encodings = load_face_from_supabase(supabase_client, user["id"])
 
     with ui.column().style("width: 100%; height: 100vh; justify-content: center; align-items: center;"):
+        # Affichage du flux vidéo
+        with ui.row().style("justify-content: center; width: 100%;"):
+            ui.html('<iframe src="/video_stream" style="width: 640px; height: 360px;"></iframe>').style(
+                "margin-bottom: 5px;"
+            )
         ui.label("Un petit instant, nous vérifions votre identité...").style("font-size: 18px; margin-bottom: 20px;")
     await ui.context.client.connected()
     if stored_encodings["encoding"] == []:
@@ -459,6 +477,21 @@ async def order_detail_page(order_id: str):
 
     with ui.column().style("padding: 20px; width: 100%;"):
         ui.label(f"Détails de la commande {order_details.get('name', 'N/A')}").style("font-size: 24px; font-weight: bold; margin-bottom: 20px;")
+        
+        # Affichage du poids en temps réel si la balance est disponible
+        if scale is not None:
+            with ui.row().style("margin-bottom: 20px; align-items: center;"):
+                weight_label = ui.label("Poids actuel: --.-- g").style("font-size: 16px;")
+                async def update_weight():
+                    while True:
+                        try:
+                            weight = scale.get_weight()
+                            weight_label.set_text(f"Poids actuel: {weight:.2f} g")
+                        except Exception as e:
+                            weight_label.set_text("Erreur de lecture du poids")
+                        await asyncio.sleep(0.5)
+                ui.timer(0.5, update_weight)
+        
         if order_items:
             # Préparer les données pour le tableau
             rows = []
@@ -522,26 +555,59 @@ async def order_detail_page(order_id: str):
         ui.button("Retour", on_click=lambda: ui.navigate.to('/orders')).style("margin-top: 20px;")
 
 def toggle_item(order_item_id):
-    ui.notify("Erreur: impossible de communiquer avec le bras", color="red")
-    return
+    if scale is None:
+        ui.notify("Erreur: la balance n'est pas initialisée", color="red")
+        return
+
+    # Afficher un message d'attente
+    ui.notify("Récupération de l'item en cours...", color="info")
+    
+    # Récupérer les informations de l'item
+    order_item = get_order_items(order_item_id)
+    if not order_item:
+        ui.notify("Erreur: impossible de récupérer les informations de l'item", color="red")
+        return
+    
+    box = get_box(order_item[0]["item_id"]["id"])
+    if not box:
+        ui.notify("Erreur: impossible de récupérer les informations de la boîte", color="red")
+        return
+    
+    # Envoyer la commande au bras pour récupérer la boîte
+    # TODO: Implémenter la communication avec le bras
+    
+    # Attendre que la boîte soit déposée sur la balance
+    ui.notify("Veuillez déposer la boîte sur la balance...", color="info")
+    
+    # Lire le poids
+    try:
+        weight = scale.get_weight()
+        ui.notify(f"Poids mesuré: {weight:.2f} g", color="success")
+    except Exception as e:
+        ui.notify(f"Erreur lors de la pesée: {e}", color="red")
+        return
+    
+    # Mettre à jour le statut de l'item
     result = toggle_order_item(order_item_id)
     if result:
         new_status = result.get("status")
         position = result.get("position")
         item_type = result.get("type")
         if new_status == "retrieved":
-            ui.notify(f"Item récupéré. Position: {position}", color="green")
+            ui.notify(f"Item récupéré. Position: {position}, Poids: {weight:.2f} g", color="green")
         elif new_status == "returned":
-            ui.notify("Item déposé", color="green")
+            ui.notify(f"Item déposé. Poids: {weight:.2f} g", color="green")
         # Pour actualiser l'affichage, on peut recharger la page
         ui.navigate.to(ui.current_path())
     else:
         ui.notify("Erreur lors de la mise à jour de l'item", color="red")
 
 def toggle_all_items(rows):
-    ui.notify("Erreur: impossible de communiquer avec le bras", color="red")
-    return
+    if scale is None:
+        ui.notify("Erreur: la balance n'est pas initialisée", color="red")
+        return
+        
+    ui.notify("Récupération de tous les items en cours...", color="info")
     for row in rows:
-        # On applique toggle_item sur chaque order_item
         toggle_item(row["order_item_id"])
     ui.notify("Action sur tous les items effectuée", color="green")
