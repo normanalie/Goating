@@ -1,7 +1,8 @@
 <script setup>
-import { ref } from 'vue'
+import { ref, defineProps, defineEmits, defineModel } from 'vue'
 
-const props = defineProps({
+defineProps({
+  modelValue: String,
   type: {
     type: String,
     default: 'text',
@@ -17,26 +18,18 @@ const props = defineProps({
   height: {
     type: String,
     default: '5.3vh',
-  },
-  prepend: {
-    type: String,
-    default: '',
-  },
-  append: {
-    type: String,
-    default: '',
-  },
+  }
 })
 
-const inputField = ref('')
+const inputValue = defineModel();
 </script>
 
 <template>
     <input
       :type="type"
       :placeholder="placeholder"
-      v-model="inputField"
-      :style="{ width: width, height: height }"
+      v-model="inputValue"
+      :style="{ width, height }"
       required
     />
 </template>
@@ -75,5 +68,6 @@ input:hover {
 
 input:active {
   border-color: rgba(0, 0, 0, 0.1);
+  outline: none;
 }
 </style>

@@ -12,7 +12,6 @@ export const useOrderStore = defineStore('order', {
         console.log("Nouvel élément ajouté: ", JSON.stringify(item, null, 2));
       } else {
         this.orders[index] = item;
-        console.log("Élément existant écrasé: ", JSON.stringify(item, null, 2));
       }
     },
     removeItemById(id) {
@@ -37,5 +36,5 @@ export const useOrderStore = defineStore('order', {
 
 
   },
-  persist: true  // Active la persistance automatique
+  persist: true
 })

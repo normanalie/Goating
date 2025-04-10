@@ -3,7 +3,7 @@ import { ref, onMounted } from 'vue'
 import { createClient } from '@supabase/supabase-js'
 import { useRouter } from 'vue-router'
 import InputField from '@/components/InputField.vue'
-import PrimButton from '@/components/PrimButton.vue'
+import PrimButton from '@/components/MainButton.vue'
 import SecButton from '@/components/SecButton.vue'
 import TerButton from '@/components/TerButton.vue'
 import { supabase } from '@/supabase.js';
@@ -26,19 +26,18 @@ async function isUserLoggedIn() {
 }
 
 // Fonction de connexion
-async function loginUserWithEmail() {
+async function loginUserWithEmail(emailInput, passwordInput) {
   try {
     errorMessage.value = ''
     const { data, error } = await supabase.auth.signInWithPassword({
-      email: userInput.value,
-      password: pwdInput.value,
+      email: emailInput,
+      password: passwordInput,
     })
 
     if (error) throw error
 
     console.log('Connexion réussie.')
     user.value = data.user
-    isUserLoggedIn()
     router.push('/')
   } catch (e) {
     errorMessage.value = 'Erreur de connexion : ' + e.message
@@ -57,28 +56,19 @@ async function loginUserWithNumber(staffNumber, password) {
     if (!emailData) throw new Error('Aucun email trouvé pour ce numéro de staff.')
 
     // Tentative de connexion avec l'email récupéré
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: emailData,
-      password: password,
-    })
-
-    if (error) throw error
-
-    user.value = data.user
-    errorMessage.value = ''
-    return { user: data.user, error: null }
-  } catch (e) {
-    //console.error('[SUPABASE] Erreur de connexion :', e.message)
-    errorMessage.value = e.message
-    return { user: null, error: e.message }
+    loginUserWithEmail(emailData, password)
+  } catch(error) {
+    console.error('[SUPABASE] Erreur lors de la récupération de cet email: ', error)
   }
+
 }
 
 const loginUser = () => {
   if (/^\d+$/.test(userInput.value)) {
-    loginUserWithNumber(userInput.value)
+    loginUserWithNumber(userInput.value, pwdInput.value)
   } else {
-    loginUserWithEmail(userInput.value)
+    console.log('test')
+    loginUserWithEmail(userInput.value, pwdInput.value)
   }
 }
 
@@ -109,8 +99,15 @@ onMounted(async () => {})
           />
         </div>
 
-        <PrimButton input="Se connecter" class="w-[90%] mx-auto" @click="loginUser" />
-        <SecButton input="Aide" class="w-[90%] mx-auto mt-[-5%]" />
+        <PrimButton
+        input="Se connecter"
+        class="w-[90%] mx-auto"
+        @click="loginUser"
+        id="PrimButton" />
+        <PrimButton
+        input="Aide"
+        class="w-[90%] mx-auto mt-[-5%]"
+        id="SecButton" />
         <p v-if="errorMessage" class="text-red-600 text-center mt-2">{{ errorMessage }}</p>
       </div>
     </div>

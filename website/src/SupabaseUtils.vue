@@ -12,7 +12,7 @@ INUTILE POUR L'INSTANT J'Y METS JUSTE DES FONCTIONS SUPABASE POUR POUVOIR LES RE
 async function signOut() {
   const { error } = await supabase.auth.signOut();
   if (error) {
-    console.error('Erreur de déconnexion:', error.message);
+    console.error('[SUPABASE] Erreur de déconnexion');
   } else {
     console.log('Déconnexion réussie');
   }
@@ -41,11 +41,11 @@ async function linkItemToOrderInProcess(userId) { // ya surement plus efficace
         ])
         .select()
         if(error) throw error
-        console.log("Création de la commande réussie: " + data);
+        console.log("[SUPABASE] Création de la commande réussie");
         orders.push(data[0]);
 
       } catch (e) {
-        console.log("[SUPABASE] Error during order insert: " + e)
+        console.log("[SUPABASE] Error during order insert")
       }
 
     }
@@ -63,7 +63,7 @@ async function linkItemToOrderInProcess(userId) { // ya surement plus efficace
       console.log(e)
     }
   } catch (e) {
-    console.log("[SUPABASE] Processing orders fetch error: " + e);
+    console.log("[SUPABASE] Processing orders fetch error");
     return null; // Renvoie null en cas d'erreur
   }
 }
@@ -82,10 +82,10 @@ async function addItemToOrder(){
   ])
   .select()
   if(error) throw error
-  console.log("Item ajouté à la commande avec succès: " + data)
+  console.log("[SUPABASE] Item ajouté à la commande avec succès")
   linkItemToOrderInProcess(userId)
   } catch (e) {
-    console.log("Erreur lors de l'ajout de l'item à la commande:" + e)
+    console.log("[SUPABASE] Erreur lors de l'ajout de l'item à la commande")
   }
 }
 </script>

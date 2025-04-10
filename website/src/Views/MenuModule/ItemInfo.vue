@@ -2,7 +2,7 @@
 import { createRouter, createWebHistory, useRoute } from 'vue-router'
 import { onMounted, ref } from 'vue'
 import Rectangle from '@/components/ItemRectangle.vue';
-import PrimButton from '@/components/PrimButton.vue';
+import PrimButton from '@/components/MainButton.vue';
 import { supabase } from '@/supabase.js';
 import Slider from '@/components/Slider.vue';
 import { useOrderStore } from '@/stores/orderStore';
@@ -97,7 +97,6 @@ onMounted(async () => {
 </script>
 
 <template>
-  <body>
     <main class="h-full">
       <div class="item">
         <div class="imgDiv">
@@ -119,15 +118,14 @@ onMounted(async () => {
         <div class="itemInfo">
           <div class="itemHeader">
 
-            <h2 class="text-[3.5em]">{{ itemName }}</h2>
+            <h2 class="text-[2.5em]">{{ itemName }}</h2>
             <h3> Référence: {{ itemRef.split("-").pop() }}</h3>
           </div>
           <h3 class="text-[1.5em]">{{ itemType }}</h3>
-          <p>{{ itemDescription }}</p>
+          <p class=" text-sm">{{ itemDescription }}</p>
           <Slider
           :sliderId="itemRef"
           @update:value="updateSliderValue"></Slider>
-          <p>{{ sliderValue }}</p>
           <PrimButton
           :input="'Ajouter au panier'"
           :width="'15vw'"
@@ -150,7 +148,6 @@ onMounted(async () => {
         </div>
       </div>
     </main>
-  </body>
 </template>
 
 
